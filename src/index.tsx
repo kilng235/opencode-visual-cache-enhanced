@@ -280,7 +280,8 @@ function TokenCachePanel(props: {
     const hasPricing = inputRate > 0 || cacheReadRate > 0
 
     let trend = 0
-    if (prevMsgHitRate >= 0 && lastMsgHitRate >= 0) {
+    const hasTrendData = prevMsgHitRate >= 0 && lastMsgHitRate >= 0
+    if (hasTrendData) {
       trend = lastMsgHitRate - prevMsgHitRate
     }
 
@@ -290,7 +291,7 @@ function TokenCachePanel(props: {
       hitRate, read, write, freshInput: input, output,
       cost, saved, model, inputRate, cacheReadRate, hasPricing,
       hasData: read > 0 || write > 0 || input > 0 || output > 0 || cost > 0,
-      trend,
+      trend, hasTrendData,
       providerName,
     }
   })
@@ -323,7 +324,7 @@ function TokenCachePanel(props: {
 
   const sep = createMemo(() => "\u2500".repeat(Math.max(1, panelWidth() - GUTTER)))
   const barW = createMemo(() => {
-    const overhead = visualWidth(T.hit) + 1 + 2 + 1 + /*pct*/5 + GUTTER
+    const overhead = visualWidth(T.hit) + 1 + 2 + 1 + /*pct*/5 + /*trend*/8 + GUTTER
     return Math.max(3, panelWidth() - overhead)
   })
   const bar = createMemo(() => progressBar(d().hitRate, barW()))
@@ -373,9 +374,9 @@ function TokenCachePanel(props: {
             <span style={{ fg: pal().text }}>{T.hit} </span>
             <span style={{ fg: hitColor() }}>[{bar()}] </span>
             <span style={{ fg: pal().text }}>{pct()}</span>
-            <Show when={d().trend !== 0}>
-              <span style={{ fg: d().trend > 0 ? pal().success : pal().error }}>
-                {" "}{d().trend > 0 ? "\u2191" : "\u2193"}{Math.abs(d().trend).toFixed(1)}%
+            <Show when={d().hasTrendData}>
+              <span style={{ fg: d().trend !== 0 ? (d().trend > 0 ? pal().success : pal().error) : pal().text }}>
+                {" "}{d().trend > 0 ? "\u2191" : d().trend < 0 ? "\u2193" : "-"}{d().trend !== 0 ? Math.abs(d().trend).toFixed(1) + "%" : ""}
               </span>
             </Show>
           </text>
