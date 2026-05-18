@@ -355,12 +355,16 @@ function TokenCachePanel(props: {
           </text>
 
           {/* token breakdown */}
-          <text fg={pal().muted}>
-            {justify(T.read,  fmt(d().read),         T.tok)}
-          </text>
-          <text fg={pal().muted}>
-            {justify(T.write, fmt(d().write),        T.tok)}
-          </text>
+          <Show when={d().read > 0}>
+            <text fg={pal().muted}>
+              {justify(T.read,  fmt(d().read),         T.tok)}
+            </text>
+          </Show>
+          <Show when={d().write > 0}>
+            <text fg={pal().muted}>
+              {justify(T.write, fmt(d().write),        T.tok)}
+            </text>
+          </Show>
           <text fg={pal().muted}>
             {justify(T.miss,  fmt(d().freshInput),   T.tok)}
           </text>
