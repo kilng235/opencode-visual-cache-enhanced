@@ -292,7 +292,7 @@ function TokenCachePanel(props: {
   const [open, setOpen] = createSignal(true)
   const [detailOpen, setDetailOpen] = createSignal(true)
   const [modelOpen, setModelOpen] = createSignal(true)
-  const [distOpen, setDistOpen] = createSignal(true)
+  const [distOpen, setDistOpen] = createSignal(false)
   let boxEl: any
 
   // ── scan session messages reactively ──
@@ -464,7 +464,21 @@ function TokenCachePanel(props: {
   // ── token distribution (in-process via api.state.part) ──
   const [partVersion, setPartVersion] = createSignal(0)
 
+  // Persist fold state to api.kv
+  const KV_PREFIX = "cache_panel"
+  const persistFold = (key: string, val: boolean) => {
+    try { props.api.kv.set(`${KV_PREFIX}.${key}`, val) } catch {}
+  }
+
   onMount(() => {
+    // Restore fold state from persisted storage
+    try {
+      setOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.open`, true)))
+      setDetailOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.detail`, true)))
+      setModelOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.model`, true)))
+      setDistOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.dist`, false)))
+    } catch {}
+
     const unsubPart = props.api.event.on("message.part.updated", () => {
       setPartVersion((v) => v + 1)
     })
@@ -519,20 +533,6 @@ function TokenCachePanel(props: {
     return label + " ".repeat(gap) + value + (unit ? " " + unit : "")
   }
 
-  // section header: arrow + title + separator tail — clickable toggle
-  const sectionHead = (label: string, expanded: boolean, onClick: () => void): JSX.Element => {
-    const arrow = expanded ? "\u25be " : "\u25b8 "
-    const headW = visualWidth(arrow + label)
-    const tail = sep().slice(headW > sep().length ? 0 : headW)
-    return (
-      <text onMouseUp={onClick}>
-        <span style={{ fg: pal().muted }}>{arrow}</span>
-        <span style={{ fg: pal().primary }}><b>{label}</b></span>
-        <span style={{ fg: pal().muted }}>{tail}</span>
-      </text>
-    )
-  }
-
   return (
     <box
       border
@@ -551,7 +551,7 @@ function TokenCachePanel(props: {
       }}
     >
       {/* collapsible header */}
-      <text onMouseUp={() => setOpen((o) => !o)}>
+      <text onMouseUp={() => setOpen((o) => { const n = !o; persistFold("open", n); return n })}>
         <span style={{ fg: pal().muted }}>{open() ? "\u25bc " : "\u25b6 "}</span>
         <span style={{ fg: pal().primary }}>
             <b>{T.title}</b>
@@ -608,7 +608,11 @@ function TokenCachePanel(props: {
           </text>
 
           {/* ── detail section (collapsible, default open) ── */}
-          {sectionHead(T.secDetail, detailOpen(), () => setDetailOpen((o) => !o))}
+          <text onMouseUp={() => setDetailOpen((o) => { const n = !o; persistFold("detail", n); return n })}>
+            <span style={{ fg: pal().muted }}>{detailOpen() ? "\u25bc " : "\u25b6 "}</span>
+            <span style={{ fg: pal().primary }}><b>{T.secDetail}</b></span>
+            <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((detailOpen() ? "\u25bc " : "\u25b6 ") + T.secDetail))}</span>
+          </text>
 
           <Show when={detailOpen()}>
             <Show when={data().read > 0}>
@@ -637,7 +641,11 @@ function TokenCachePanel(props: {
           </Show>
 
           {/* ── model section (collapsible, default open) ── */}
-          {sectionHead(T.secModel, modelOpen(), () => setModelOpen((o) => !o))}
+          {<text onMouseUp={() => setModelOpen((o) => { const n = !o; persistFold("model", n); return n })}>
+            <span style={{ fg: pal().muted }}>{modelOpen() ? "\u25bc " : "\u25b6 "}</span>
+            <span style={{ fg: pal().primary }}><b>{T.secModel}</b></span>
+            <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((modelOpen() ? "\u25bc " : "\u25b6 ") + T.secModel))}</span>
+          </text>}
 
           <Show when={modelOpen()}>
             <text fg={pal().text}>
@@ -668,9 +676,13 @@ function TokenCachePanel(props: {
             </Show>
           </Show>
 
-          {/* ── token distribution (collapsible, default open) ── */}
+          {/* ── token distribution (collapsible, default closed) ── */}
           <Show when={data().hasDistData}>
-            {sectionHead(T.distTitle, distOpen(), () => setDistOpen((o) => !o))}
+            {<text onMouseUp={() => setDistOpen((o) => { const n = !o; persistFold("dist", n); return n })}>
+              <span style={{ fg: pal().muted }}>{distOpen() ? "\u25bc " : "\u25b6 "}</span>
+              <span style={{ fg: pal().primary }}><b>{T.distTitle}</b></span>
+              <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((distOpen() ? "\u25bc " : "\u25b6 ") + T.distTitle))}</span>
+            </text>}
             <Show when={distOpen()}>
             <Show when={data().dist.system > 0}>
               <text fg={pal().muted}>
