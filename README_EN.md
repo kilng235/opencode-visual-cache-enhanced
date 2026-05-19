@@ -18,11 +18,13 @@
 
 <div align="center">
 <strong>Collapsed 👇</strong> <br>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/example2.png"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse.png"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse_en.png"></img>
 </div>
 <div align="center">
 <strong>Expanded 👇</strong> <br>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/example1.png"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/expand.png"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/expand_en.png"></img>
 </div>
 
 ---
