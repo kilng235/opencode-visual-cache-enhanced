@@ -37,6 +37,7 @@
 - **Model Pricing**: Current model's input / cache-read rates (from provider config)
 - **Collapsible**: Click title to fold into one line
 - **Adaptive Colors**: ≥85% green · ≥70% orange · <70% red, auto-desaturated from theme
+- **Token Distribution**: Per-role (system prompt / user / tool call / tool result / output) live token estimation — no external process required
 - **Language**: Auto-detects system locale, switches between Chinese and English
 
 ---
