@@ -46,7 +46,7 @@
 Press **`Ctrl + P`** in OpenCode to open the command palette, search **`install plugin`**, then type:
 
 ```
-opencode-visual-cache
+opencode-visual-cache@latest
 ```
 
 Press Enter to install and configure automatically.
@@ -56,7 +56,7 @@ Press Enter to install and configure automatically.
 **1. Install the plugin**
 
 ```bash
-npm install -g opencode-visual-cache
+npm install -g opencode-visual-cache@latest
 ```
 
 **2. Configure TUI plugin**
@@ -66,13 +66,39 @@ Create or edit `~/.config/opencode/tui.jsonc`:
 ```jsonc
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-visual-cache"]
+  "plugin": ["opencode-visual-cache@latest"]
 }
 ```
 
 ### Restart OpenCode
 
 Open any session — the cache stats panel appears in the sidebar.
+
+---
+
+## Update
+
+Due to a [known OpenCode issue #6774](https://github.com/anomalyco/opencode/issues/6774), the plugin cache locks to the version installed at first setup and does **not** auto-detect newer releases on npm.
+
+To update:
+
+**1. Clear the OpenCode plugin cache**
+
+```powershell
+# Windows
+Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\opencode\packages\opencode-visual-cache@latest"
+```
+
+```bash
+# macOS / Linux
+rm -rf ~/.cache/opencode/packages/opencode-visual-cache@latest
+```
+
+**2. Re-install the plugin**
+
+Press **`Ctrl + P`** in OpenCode → `install plugin` → `opencode-visual-cache@latest` → Enter
+
+**3. Restart OpenCode**
 
 ---
 

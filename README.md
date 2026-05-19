@@ -45,7 +45,7 @@
 在 OpenCode 中按 **`Ctrl + P`** 打开命令面板，搜索 **`install plugin`**，输入：
 
 ```
-opencode-visual-cache
+opencode-visual-cache@latest
 ```
 
 回车即可完成安装与配置。
@@ -55,7 +55,7 @@ opencode-visual-cache
 **1. 安装插件**
 
 ```bash
-npm install -g opencode-visual-cache
+npm install -g opencode-visual-cache@latest
 ```
 
 **2. 配置 TUI 插件**
@@ -65,13 +65,39 @@ npm install -g opencode-visual-cache
 ```jsonc
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-visual-cache"]
+  "plugin": ["opencode-visual-cache@latest"]
 }
 ```
 
 ### 重启 OpenCode
 
 进入任意 session，侧边栏即可看到缓存统计面板。
+
+---
+
+## 更新
+
+由于 [OpenCode 已知问题 #6774](https://github.com/anomalyco/opencode/issues/6774)，插件缓存会锁死在首次安装时的版本，不会自动检测 npm 上的新版本。
+
+更新步骤：
+
+**1. 清除 OpenCode 插件缓存**
+
+```powershell
+# Windows
+Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\opencode\packages\opencode-visual-cache@latest"
+```
+
+```bash
+# macOS / Linux
+rm -rf ~/.cache/opencode/packages/opencode-visual-cache@latest
+```
+
+**2. 重新安装插件**
+
+在 OpenCode 中按 **`Ctrl + P`** → `install plugin` → `opencode-visual-cache@latest` → 回车
+
+**3. 重启 OpenCode**
 
 ---
 
