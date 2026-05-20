@@ -7,8 +7,9 @@
 <br>
 
 [![Stars](https://img.shields.io/github/stars/Hotakus/opencode-visual-cache?style=flat-square)](https://github.com/Hotakus/opencode-visual-cache/stargazers)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![中文](https://img.shields.io/badge/中文-README-red?style=flat-square)](README.md)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
+[![English](https://img.shields.io/badge/English-README-blue?style=flat-square)](README_EN.md)
+![NPM Version](https://img.shields.io/npm/v/opencode-visual-cache?style=flat-square)
 
 </div>
 

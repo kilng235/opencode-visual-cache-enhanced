@@ -5,10 +5,13 @@
     自适应主题色 · 自动低饱和设计语言 · 支持中/英双语
 </strong>
 <br>
+<br>
+
 
 [![Stars](https://img.shields.io/github/stars/Hotakus/opencode-visual-cache?style=flat-square)](https://github.com/Hotakus/opencode-visual-cache/stargazers)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![English](https://img.shields.io/badge/English-README-blue?style=flat-square)](README_EN.md)
+![NPM Version](https://img.shields.io/npm/v/opencode-visual-cache?style=flat-square)
 
 </div>
 
