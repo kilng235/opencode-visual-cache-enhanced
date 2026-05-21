@@ -121,6 +121,8 @@ Cost display supports multiple currencies:
 | KRW | `₩` | 1350 |
 
 > The rate applies to session cost, cache savings, and per-million pricing — consistently across the panel.
+>
+> **Base currency**: The plugin assumes all provider pricing is in USD. Major AI APIs (OpenAI / Anthropic / Google / DeepSeek / xAI etc.) use USD for their international endpoints. If your provider bills in CNY or another currency, set the exchange rate to `1`.
 
 ### 4.3 Section Visibility
 

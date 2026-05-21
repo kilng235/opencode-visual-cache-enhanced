@@ -122,6 +122,8 @@ npm install -g opencode-visual-cache@latest
 | KRW | `₩` | 1350 |
 
 > 汇率会同步应用到 Session 累计费用、缓存节省金额、以及模型单价展示。
+>
+> **基币说明**：插件假设提供商定价均为美元（USD）。目前主流 AI API（OpenAI / Anthropic / Google / DeepSeek / xAI 等）的国际版均以 USD 计价。如果你使用的提供商以人民币或其他货币计价，请将汇率设为 `1`。
 
 ### 4.3 区块可见性
 
