@@ -17,7 +17,7 @@ import type {
   FilePart,
   ReasoningPart,
 } from "@opencode-ai/sdk/v2"
-import { createMemo, createSignal, onMount, onCleanup, Show } from "solid-js"
+import { createMemo, createSignal, createEffect, onMount, onCleanup, Show } from "solid-js"
 import { PLUGIN_VERSION } from "./_version"
 
 // ---------------------------------------------------------------------------
@@ -306,14 +306,23 @@ interface TokenDist {
 // Sidebar component
 // ---------------------------------------------------------------------------
 
-/** Module-level config signals — shared between the TUI component and slash
- *  commands so that runtime changes take effect immediately without restart. */
-const [currencySymbol, setCurrencySymbol] = createSignal("$")
-const [exchangeRate, setExchangeRate] = createSignal(1)
-const [sectionDetail, setSectionDetail] = createSignal(true)
-const [sectionModel, setSectionModel] = createSignal(true)
-const [sectionDist, setSectionDist] = createSignal(true)
-const [borderVisible, setBorderVisible] = createSignal(true)
+/** Signals shared between the TUI component and slash commands.
+ *  Created in the `tui` function scope so they do not survive module reload —
+ *  the component re-creates them on mount and restores user config from kv. */
+interface PanelSignals {
+  currencySymbol: () => string
+  setCurrencySymbol: (v: string) => void
+  exchangeRate: () => number
+  setExchangeRate: (v: number) => void
+  sectionDetail: () => boolean
+  setSectionDetail: (v: boolean) => void
+  sectionModel: () => boolean
+  setSectionModel: (v: boolean) => void
+  sectionDist: () => boolean
+  setSectionDist: (v: boolean) => void
+  borderVisible: () => boolean
+  setBorderVisible: (v: boolean) => void
+}
 
 const CURRENCIES: Record<string, string> = {
   USD: "$", CNY: "¥", EUR: "€", JPY: "JP¥", GBP: "£", KRW: "₩",
@@ -340,6 +349,7 @@ function TokenCachePanel(props: {
   theme: TuiThemeCurrent
   api: TuiPluginApi
   sessionId: string
+  signals: PanelSignals
 }): JSX.Element {
   const [panelWidth, setPanelWidth] = createSignal(DEFAULT_PANEL_WIDTH)
   const [open, setOpen] = createSignal(true)
@@ -348,9 +358,31 @@ function TokenCachePanel(props: {
   const [distOpen, setDistOpen] = createSignal(false)
   let boxEl: any
 
+  // ── shared signals (de-structured so internal code is unchanged) ──
+  const {
+    currencySymbol, setCurrencySymbol,
+    exchangeRate, setExchangeRate,
+    sectionDetail, setSectionDetail,
+    sectionModel, setSectionModel,
+    sectionDist, setSectionDist,
+    borderVisible, setBorderVisible,
+  } = props.signals
+
   // ── scan session messages reactively ──
   // SolidJS createMemo re-evaluates whenever the underlying
   // api.state.session state changes — no event listener needed.
+
+  // ── distribution cache ────────────────────────────────────────
+  // When data() re-computes before api.state.part() is warm (e.g. after
+  // a view switch), hasDistData flips to false and the distribution
+  // block disappears.  Keep the last valid snapshot so the UI stays
+  // stable until the next successful computation arrives.
+  const [lastDist, setLastDist] = createSignal<TokenDist>({
+    system: 0, user: 0, agent: 0, toolCall: 0, toolResult: 0,
+    output: 0, apiOutput: 0, apiInput: 0, stepCost: 0,
+  })
+  const [lastHasDist, setLastHasDist] = createSignal(false)
+
   const data = createMemo(() => {
     const msgs = props.api.state.session.messages(props.sessionId) as Message[]
 
@@ -517,6 +549,11 @@ function TokenCachePanel(props: {
       // Graceful degradation — dist stays at zeroes
     }
 
+    // Fall back to last known-good distribution while api.state.part()
+    // is re-hydrating after a view switch.
+    const finalDist = hasDistData ? dist : lastDist()
+    const finalHasDist = hasDistData || lastHasDist()
+
     return {
       hitRate, read, write, freshInput: input, output,
       cost, saved, model, inputRate, cacheReadRate, cacheWriteRate, hasPricing,
@@ -524,7 +561,20 @@ function TokenCachePanel(props: {
       trend, hasTrendData,
       providerName,
       sessionHitRate,
-      dist, hasDistData,
+      dist: finalDist,
+      hasDistData: finalHasDist,
+    }
+  })
+
+  // Persist the last valid distribution so that data() can fall back
+  // to it while api.state.part() is re-hydrating after a view switch.
+  createEffect(() => {
+    const d = data()
+    if (d.hasDistData) {
+      setLastDist({ ...d.dist })
+      setLastHasDist(true)
+      // Also persist across component remounts (view switches)
+      try { props.api.kv.set(`${KV_PREFIX}.dist_snapshot`, { ...d.dist }) } catch {}
     }
   })
 
@@ -538,7 +588,11 @@ function TokenCachePanel(props: {
   }
 
   onMount(() => {
-    // Restore fold state from persisted storage
+    // Reset panelWidth on (re)mount so the layout uses a clean
+    // default until onSizeChange measures the live box dimensions.
+    setPanelWidth(DEFAULT_PANEL_WIDTH)
+
+    // Restore fold state from persisted storage (non-critical — fire and forget)
     try {
       setOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.open`, false)))
       setDetailOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.detail`, true)))
@@ -546,20 +600,48 @@ function TokenCachePanel(props: {
       setDistOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.dist`, false)))
     } catch {}
 
-    // Restore user config (currency, rate, section visibility)
-    try {
-      const sym = props.api.kv.get<string>(`${KV_PREFIX}.currency`)
-      const rate = props.api.kv.get<number>(`${KV_PREFIX}.rate`)
-      if (typeof sym === "string") setCurrencySymbol(sym)
-      if (typeof rate === "number" && rate > 0) setExchangeRate(rate)
-      setSectionDetail(Boolean(props.api.kv.get(`${KV_PREFIX}.section.detail`, true)))
-      setSectionModel(Boolean(props.api.kv.get(`${KV_PREFIX}.section.model`, true)))
-      setSectionDist(Boolean(props.api.kv.get(`${KV_PREFIX}.section.dist`, true)))
-      const borderVal = props.api.kv.get<boolean>(`${KV_PREFIX}.border`, true)
-      setBorderVisible(borderVal !== false)
-    } catch {}
+    // Restore user config (currency, rate, section visibility).
+    // Try synchronously first (kv is usually ready on mount), fall back to
+    // polling if the module was reloaded and kv hasn't initialised yet.
+    const doRestore = () => {
+      try {
+        const sym = props.api.kv.get<string>(`${KV_PREFIX}.currency`)
+        const rate = props.api.kv.get<number>(`${KV_PREFIX}.rate`)
+        if (typeof sym === "string") setCurrencySymbol(sym)
+        if (typeof rate === "number" && rate > 0) setExchangeRate(rate)
+        setSectionDetail(Boolean(props.api.kv.get(`${KV_PREFIX}.section.detail`, true)))
+        setSectionModel(Boolean(props.api.kv.get(`${KV_PREFIX}.section.model`, true)))
+        setSectionDist(Boolean(props.api.kv.get(`${KV_PREFIX}.section.dist`, true)))
+        const bv = props.api.kv.get<boolean>(`${KV_PREFIX}.border`, true)
+        setBorderVisible(bv !== false)
+        // Restore distribution snapshot so the token distribution block
+        // doesn't blank out while api.state.part() re-hydrates.
+        const cachedDist = props.api.kv.get<TokenDist>(`${KV_PREFIX}.dist_snapshot`)
+        if (cachedDist) {
+          setLastDist(cachedDist)
+          setLastHasDist(true)
+        }
+      } catch {
+        // kv read failed — signals stay at defaults
+      }
+      // Re-measure panel width after config signals have settled
+      if (boxEl && typeof boxEl.width === "number" && boxEl.width > 0) {
+        setPanelWidth(Math.max(MIN_PANEL_WIDTH, boxEl.width))
+      }
+    }
 
-    // (border visibility was restored above together with section config)
+    if (props.api.kv.ready) {
+      doRestore()
+    } else {
+      const pollRestore = () => {
+        if (!props.api.kv.ready) {
+          setTimeout(pollRestore, 10)
+          return
+        }
+        doRestore()
+      }
+      pollRestore()
+    }
 
     const unsubPart = props.api.event.on("message.part.updated", () => {
       setPartVersion((v) => v + 1)
@@ -610,6 +692,17 @@ function TokenCachePanel(props: {
   const bar = createMemo(() => progressBar(data().hitRate, barW()))
   const pct = createMemo(() => (Math.floor(data().hitRate * 10) / 10).toFixed(1) + "%")
 
+  // When border visibility changes the box dimensions shift, which
+  // may not reliably trigger onSizeChange across (re)mount cycles.
+  // Force panelWidth to resync with the live box after every change.
+  createEffect(() => {
+    borderVisible()
+    if (boxEl && typeof boxEl.width === "number" && boxEl.width > 0) {
+      const w = Math.max(MIN_PANEL_WIDTH, boxEl.width)
+      setPanelWidth((prev) => (prev === w ? prev : w))
+    }
+  })
+
   // left-align label, right-align value — auto-fill space between
   const justify = (label: string, value: string, unit = ""): string => {
     const gauge = panelWidth() - gutter()
@@ -621,7 +714,7 @@ function TokenCachePanel(props: {
   return (
     <box
       border={borderVisible()}
-      borderColor={pal().border}
+      {...(borderVisible() ? { borderColor: pal().border } : {})}
       paddingTop={0}
       paddingBottom={0}
       paddingLeft={borderVisible() ? 2 : 0}
@@ -815,7 +908,7 @@ function TokenCachePanel(props: {
 // Plugin entry
 // ---------------------------------------------------------------------------
 
-function createSidebarSlot(api: TuiPluginApi): TuiSlotPlugin {
+function createSidebarSlot(api: TuiPluginApi, signals: PanelSignals): TuiSlotPlugin {
   return {
     order: 55,
     slots: {
@@ -825,6 +918,7 @@ function createSidebarSlot(api: TuiPluginApi): TuiSlotPlugin {
             theme={ctx.theme.current}
             api={api}
             sessionId={input.session_id}
+            signals={signals}
           />
         )
       },
@@ -833,7 +927,24 @@ function createSidebarSlot(api: TuiPluginApi): TuiSlotPlugin {
 }
 
 const tui: TuiPlugin = async (api: TuiPluginApi) => {
-  api.slots.register(createSidebarSlot(api))
+  // ── shared panel signals ──────────────────────────────────────
+  const [currencySymbol, setCurrencySymbol] = createSignal("$")
+  const [exchangeRate, setExchangeRate] = createSignal(1)
+  const [sectionDetail, setSectionDetail] = createSignal(true)
+  const [sectionModel, setSectionModel] = createSignal(true)
+  const [sectionDist, setSectionDist] = createSignal(true)
+  const [borderVisible, setBorderVisible] = createSignal(true)
+
+  const signals: PanelSignals = {
+    currencySymbol, setCurrencySymbol,
+    exchangeRate, setExchangeRate,
+    sectionDetail, setSectionDetail,
+    sectionModel, setSectionModel,
+    sectionDist, setSectionDist,
+    borderVisible, setBorderVisible,
+  }
+
+  api.slots.register(createSidebarSlot(api, signals))
 
   // ── slash commands for runtime config ──
   const KV_PREFIX = "cache_panel"
@@ -856,8 +967,8 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
               const defRate = DEFAULT_RATES[opt.value] ?? 1
               api.kv.set(`${KV_PREFIX}.currency`, sym)
               api.kv.set(`${KV_PREFIX}.rate`, defRate)
-              setCurrencySymbol(sym)
-              setExchangeRate(defRate)
+              signals.setCurrencySymbol(sym)
+              signals.setExchangeRate(defRate)
               api.ui.toast({ message: `Currency: ${opt.value} (${sym}), rate: ${defRate}` })
               dialog?.clear()
             }}
@@ -881,7 +992,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
               const n = parseFloat(val)
               if (n > 0) {
                 api.kv.set(`${KV_PREFIX}.rate`, n)
-                setExchangeRate(n)
+                signals.setExchangeRate(n)
                 api.ui.toast({ message: `Exchange rate set to ${n}` })
               }
               dialog?.clear()
@@ -913,15 +1024,15 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
               if (opt.value === "border") {
                 const cur = Boolean(api.kv.get(`${KV_PREFIX}.border`, true))
                 api.kv.set(`${KV_PREFIX}.border`, !cur)
-                setBorderVisible(!cur)
+                signals.setBorderVisible(!cur)
                 api.ui.toast({ message: `Panel border ${!cur ? "shown" : "hidden"}` })
               } else {
                 const key = `${KV_PREFIX}.section.${opt.value}`
                 const cur = Boolean(api.kv.get(key, true))
                 api.kv.set(key, !cur)
-                if (opt.value === "detail") setSectionDetail(!cur)
-                if (opt.value === "model")  setSectionModel(!cur)
-                if (opt.value === "dist")   setSectionDist(!cur)
+                if (opt.value === "detail") signals.setSectionDetail(!cur)
+                if (opt.value === "model")  signals.setSectionModel(!cur)
+                if (opt.value === "dist")   signals.setSectionDist(!cur)
                 api.ui.toast({ message: `${opt.value} section ${!cur ? "shown" : "hidden"}` })
               }
               dialog?.clear()
