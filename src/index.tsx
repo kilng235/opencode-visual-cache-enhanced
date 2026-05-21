@@ -313,6 +313,7 @@ const [exchangeRate, setExchangeRate] = createSignal(1)
 const [sectionDetail, setSectionDetail] = createSignal(true)
 const [sectionModel, setSectionModel] = createSignal(true)
 const [sectionDist, setSectionDist] = createSignal(true)
+const [borderVisible, setBorderVisible] = createSignal(true)
 
 const CURRENCIES: Record<string, string> = {
   USD: "$", CNY: "¥", EUR: "€", JPY: "JP¥", GBP: "£", KRW: "₩",
@@ -558,6 +559,9 @@ function TokenCachePanel(props: {
       setSectionDist(Boolean(props.api.kv.get(`${KV_PREFIX}.section.dist`, true)))
     } catch {}
 
+    // Restore border visibility
+    try { setBorderVisible(Boolean(props.api.kv.get(`${KV_PREFIX}.border`, true))) } catch {}
+
     const unsubPart = props.api.event.on("message.part.updated", () => {
       setPartVersion((v) => v + 1)
     })
@@ -614,7 +618,7 @@ function TokenCachePanel(props: {
 
   return (
     <box
-      border
+      border={borderVisible()}
       borderColor={pal().border}
       paddingTop={0}
       paddingBottom={0}
@@ -893,6 +897,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
         const detailOn = Boolean(api.kv.get(`${KV_PREFIX}.section.detail`, true))
         const modelOn  = Boolean(api.kv.get(`${KV_PREFIX}.section.model`, true))
         const distOn   = Boolean(api.kv.get(`${KV_PREFIX}.section.dist`, true))
+        const borderOn = Boolean(api.kv.get(`${KV_PREFIX}.border`, true))
         dialog?.replace(() => (
           <api.ui.DialogSelect
             title="Toggle Section"
@@ -900,15 +905,23 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
               { title: `Token Detail    [${detailOn ? "ON" : "OFF"}]`,  value: "detail" },
               { title: `Model & Pricing [${modelOn  ? "ON" : "OFF"}]`,  value: "model" },
               { title: `Token Dist.     [${distOn   ? "ON" : "OFF"}]`,  value: "dist" },
+              { title: `Panel Border    [${borderOn ? "ON" : "OFF"}]`,  value: "border" },
             ]}
             onSelect={(opt) => {
-              const key = `${KV_PREFIX}.section.${opt.value}`
-              const cur = Boolean(api.kv.get(key, true))
-              api.kv.set(key, !cur)
-              if (opt.value === "detail") setSectionDetail(!cur)
-              if (opt.value === "model")  setSectionModel(!cur)
-              if (opt.value === "dist")   setSectionDist(!cur)
-              api.ui.toast({ message: `${opt.value} section ${!cur ? "shown" : "hidden"}` })
+              if (opt.value === "border") {
+                const cur = Boolean(api.kv.get(`${KV_PREFIX}.border`, true))
+                api.kv.set(`${KV_PREFIX}.border`, !cur)
+                setBorderVisible(!cur)
+                api.ui.toast({ message: `Panel border ${!cur ? "shown" : "hidden"}` })
+              } else {
+                const key = `${KV_PREFIX}.section.${opt.value}`
+                const cur = Boolean(api.kv.get(key, true))
+                api.kv.set(key, !cur)
+                if (opt.value === "detail") setSectionDetail(!cur)
+                if (opt.value === "model")  setSectionModel(!cur)
+                if (opt.value === "dist")   setSectionDist(!cur)
+                api.ui.toast({ message: `${opt.value} section ${!cur ? "shown" : "hidden"}` })
+              }
               dialog?.clear()
             }}
           />
