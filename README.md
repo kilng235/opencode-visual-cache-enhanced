@@ -43,7 +43,6 @@
 - **折叠面板**：主标题默认折叠，点击展开；明细、模型、分布各自独立折叠
 - **颜色自适应**：命中率 ≥85% 绿 · ≥70% 橙 · <70% 红，颜色从主题色自动去饱和
 - **Token 分布**：按角色（系统提示 / 用户 / Agent 指令 / Tool 调用 / Tool 结果）展示估算 Token 占比
-- **区块折叠**：明细、模型、Token 分布各自独立折叠
 - **折叠记忆**：折叠状态持久化，重启后保持
 - **语言适配**：自动检测系统语言
 - **多币种**：通过 `/cache-currency` 切换货币，费用和节省同步换算
@@ -98,7 +97,7 @@ npm install -g opencode-visual-cache@latest
 |------|------|---------|
 | `/cache-currency` | 切换货币单位 | 从列表选择货币（USD / CNY / EUR / JPY / GBP / KRW），自动填入默认汇率 |
 | `/cache-rate` | 调整汇率乘数 | 输入自定义汇率（如 `7.2`），用于费用换算 |
-| `/cache-section` | 开关区块显示 | 独立控制「Token 明细」「模型与定价」「估算 Token 分布」的显隐 |
+| `/cache-section` | 开关区块与边框 | 独立控制 Token 明细 / 模型与定价 / 估算 Token 分布 / 面板边框的显隐 |
 | `/cache-config` | 查看当前配置 | 弹出当前货币、汇率、区块可见性状态 |
 
 <div align="center">
@@ -135,8 +134,6 @@ npm install -g opencode-visual-cache@latest
 
 通过 `/cache-section` 切换后即时生效，无需重启。此外，该命令还可以开关面板的**外边框**——关闭后内容会顶格显示，释放额外空间。
 
-通过 `/cache-section` 切换后即时生效，无需重启。
-
 ---
 
 ## 5. 更新
@@ -167,10 +164,16 @@ rm -rf ~/.cache/opencode/packages/opencode-visual-cache@latest
 
 ## 6. 调试
 
-强制英文（Windows PowerShell）：
+强制英文：
 
 ```powershell
+# Windows PowerShell
 $env:CACHE_TUI_LANG="en"; opencode
+```
+
+```bash
+# macOS / Linux
+CACHE_TUI_LANG=en opencode
 ```
 
 ---

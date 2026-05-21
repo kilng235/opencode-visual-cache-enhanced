@@ -97,7 +97,7 @@ The plugin supports slash commands and command palette (`Ctrl + P`) for runtime 
 |---------|----------|------------|
 | `/cache-currency` | Switch currency | Pick from a list (USD / CNY / EUR / JPY / GBP / KRW); default exchange rate auto-filled |
 | `/cache-rate` | Adjust exchange rate | Enter a custom rate (e.g. `7.2` for CNY) |
-| `/cache-section` | Toggle sections | Independently show/hide Detail, Model & Pricing, or Token Distribution |
+| `/cache-section` | Toggle sections & border | Independently show/hide Detail, Model & Pricing, Token Distribution, or the panel border |
 | `/cache-config` | View current config | Displays currency, rate, and section visibility |
 
 <div align="center">
