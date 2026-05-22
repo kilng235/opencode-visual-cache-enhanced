@@ -134,6 +134,8 @@ npm install -g opencode-visual-cache@latest
 
 通过 `/cache-section` 切换后即时生效，无需重启。此外，该命令还可以开关面板的**外边框**——关闭后内容会顶格显示，释放额外空间。
 
+> **关于 Token 分布数值**：分布面板中"总计"为最后一次 API 调用的精确 token 数，"系统提示"/"用户"等分项为字符级 BPE 估算值。分项之和通常小于总计，差值主要来自 OpenCode 运行时注入的系统提示组成部分，包括环境信息、Skill 目录、工具 Schema 定义等（详见 [`system.ts`](https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/session/system.ts)、[`tools.ts`](https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/session/tools.ts)）。这些内容不在 agent 配置的 `prompt` 字段中，因此插件无法估算，属于预期行为。
+
 ---
 
 ## 5. 更新
