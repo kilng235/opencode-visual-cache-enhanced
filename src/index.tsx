@@ -396,32 +396,36 @@ function TokenCachePanel(props: {
   createEffect(() => {
     const sid = props.sessionId
     void refreshTick()
-    const result = untrack(() => {
-      const msgs = props.api.state.session.messages(sid) as Message[]
-      let input = 0, read = 0, write = 0, output = 0, cost = 0, pid = "", mid = ""
-      let prevMsgHitRate = -1, lastMsgHitRate = -1
-      for (const msg of msgs) {
-        if (msg.role !== "assistant") continue
-        const t = (msg as AssistantMessage).tokens; if (!t) continue
-        const mit = num(t.input) + num(t.cache?.read), mrt = num(t.cache?.read)
-        if (mit > 0) { prevMsgHitRate = lastMsgHitRate; lastMsgHitRate = (mrt / mit) * 100 }
-        input += num(t.input); read += num(t.cache?.read); write += num(t.cache?.write); output += num(t.output)
-        cost += num((msg as AssistantMessage).cost)
-        if ((msg as AssistantMessage).providerID && (msg as AssistantMessage).modelID) { pid = (msg as AssistantMessage).providerID; mid = (msg as AssistantMessage).modelID }
-      }
-      let saved = 0, inputRate = 0, cacheReadRate = 0, cacheWriteRate = 0
-      if (read > 0 && pid && mid) for (const provider of props.api.state.provider) {
-        if (provider.id !== pid) continue
-        const model = provider.models[mid]; if (!model?.cost) continue
-        inputRate = num(model.cost.input); cacheReadRate = num(model.cost.cache?.read); cacheWriteRate = num(model.cost.cache?.write)
-        if (inputRate > cacheReadRate) saved = (read * (inputRate - cacheReadRate)) / 1_000_000
-        break
-      }
-      const hitRate = lastMsgHitRate >= 0 ? lastMsgHitRate : 0
-      const freshTotal = input + read, sessionHitRate = freshTotal > 0 ? (read / freshTotal) * 100 : 0
-      const model = mid.split("/").pop() ?? mid, hasPricing = inputRate > 0 || cacheReadRate > 0 || cacheWriteRate > 0
-      const hasTrendData = prevMsgHitRate >= 0 && lastMsgHitRate >= 0
-      const trend = hasTrendData ? lastMsgHitRate - prevMsgHitRate : 0, providerName = pid || ""
+
+    // 自然追踪 messages 和 provider（SDK 数据就绪时自动重新执行）
+    const msgs = props.api.state.session.messages(sid) as Message[]
+    let input = 0, read = 0, write = 0, output = 0, cost = 0, pid = "", mid = ""
+    let prevMsgHitRate = -1, lastMsgHitRate = -1
+    for (const msg of msgs) {
+      if (msg.role !== "assistant") continue
+      const t = (msg as AssistantMessage).tokens; if (!t) continue
+      const mit = num(t.input) + num(t.cache?.read), mrt = num(t.cache?.read)
+      if (mit > 0) { prevMsgHitRate = lastMsgHitRate; lastMsgHitRate = (mrt / mit) * 100 }
+      input += num(t.input); read += num(t.cache?.read); write += num(t.cache?.write); output += num(t.output)
+      cost += num((msg as AssistantMessage).cost)
+      if ((msg as AssistantMessage).providerID && (msg as AssistantMessage).modelID) { pid = (msg as AssistantMessage).providerID; mid = (msg as AssistantMessage).modelID }
+    }
+    let saved = 0, inputRate = 0, cacheReadRate = 0, cacheWriteRate = 0
+    if (read > 0 && pid && mid) for (const provider of props.api.state.provider) {
+      if (provider.id !== pid) continue
+      const model = provider.models[mid]; if (!model?.cost) continue
+      inputRate = num(model.cost.input); cacheReadRate = num(model.cost.cache?.read); cacheWriteRate = num(model.cost.cache?.write)
+      if (inputRate > cacheReadRate) saved = (read * (inputRate - cacheReadRate)) / 1_000_000
+      break
+    }
+    const hitRate = lastMsgHitRate >= 0 ? lastMsgHitRate : 0
+    const freshTotal = input + read, sessionHitRate = freshTotal > 0 ? (read / freshTotal) * 100 : 0
+    const model = mid.split("/").pop() ?? mid, hasPricing = inputRate > 0 || cacheReadRate > 0 || cacheWriteRate > 0
+    const hasTrendData = prevMsgHitRate >= 0 && lastMsgHitRate >= 0
+    const trend = hasTrendData ? lastMsgHitRate - prevMsgHitRate : 0, providerName = pid || ""
+
+    // untrack 只包裹已知触发死锁的 API
+    const distData = untrack(() => {
       let dist: TokenDist = { system: 0, user: 0, agent: 0, toolCall: 0, toolResult: 0, output: 0, apiOutput: 0, apiInput: 0, stepCost: 0 }
       let hasDistData = false
       try {
@@ -460,9 +464,16 @@ function TokenCachePanel(props: {
         hasDistData = totalInput > 0 || dist.apiOutput > 0 || dist.apiInput > 0
       } catch {}
       const finalDist = hasDistData ? dist : lastDist(), finalHasDist = hasDistData || lastHasDist()
-      return { hitRate, read, write, freshInput: input, output, cost, saved, model, inputRate, cacheReadRate, cacheWriteRate, hasPricing, hasData: read > 0 || write > 0 || input > 0 || output > 0 || cost > 0, trend, hasTrendData, providerName, sessionHitRate, dist: finalDist, hasDistData: finalHasDist }
+      return { finalDist, finalHasDist }
     })
-    setDataSignal(result)
+
+    setDataSignal({
+      hitRate, read, write, freshInput: input, output, cost, saved, model,
+      inputRate, cacheReadRate, cacheWriteRate, hasPricing,
+      hasData: read > 0 || write > 0 || input > 0 || output > 0 || cost > 0,
+      trend, hasTrendData, providerName, sessionHitRate,
+      dist: distData.finalDist, hasDistData: distData.finalHasDist,
+    })
   })
 
   const data = createMemo(() => {
