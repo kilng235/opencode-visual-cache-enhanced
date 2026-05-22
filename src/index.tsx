@@ -396,6 +396,7 @@ function TokenCachePanel(props: {
   createEffect(() => {
     const sid = props.sessionId
     void refreshTick()
+    void partVersion()
 
     // 自然追踪 messages 和 provider（SDK 数据就绪时自动重新执行）
     const msgs = props.api.state.session.messages(sid) as Message[]
