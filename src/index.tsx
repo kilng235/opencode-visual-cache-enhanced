@@ -241,7 +241,7 @@ function progressBar(percent: number, width: number): string {
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M"
-  if (n >= 10_000) return Math.round(n / 1_000) + "K"
+  if (n >= 10_000) return (n / 1_000).toFixed(1) + "K"
   return n.toLocaleString("en-US")
 }
 
@@ -450,7 +450,6 @@ function TokenCachePanel(props: {
             }
           } else if (msg.role === "assistant") {
             const am = msg as AssistantMessage
-            lastAssMsg = am
             dist.output += num(am.tokens?.output)
             let parts: readonly Part[] = []; try { parts = props.api.state.part(msg.id) } catch {}
             for (const p of parts) {
@@ -465,29 +464,16 @@ function TokenCachePanel(props: {
             }
           }
         }
-        // 取最后一条 assistant 消息的总输入（含缓存读）作为当前 context 大小
+        // 从后往前找最后一条有 token 数据的 assistant 消息（避免取到 streaming 中未填充的消息）
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          if (msgs[i].role !== "assistant") continue
+          const t = (msgs[i] as AssistantMessage).tokens
+          if (t && (t.input > 0 || (t.cache?.read ?? 0) > 0)) { lastAssMsg = msgs[i] as AssistantMessage; break }
+        }
+        // 取最后一条有数据消息的总输入（含缓存读）作为当前 context 大小
         dist.apiInput = num(lastAssMsg?.tokens?.input) + num(lastAssMsg?.tokens?.cache?.read)
         dist.apiOutput = num(lastAssMsg?.tokens?.output)
-        const totalInput = dist.system + dist.user + dist.agent + dist.toolCall + dist.toolResult
-        const overhead = Math.max(0, dist.apiInput - totalInput)
-        if (overhead > 0) {
-          if (totalInput > 0) {
-            // 按各角色估算值的比例分摊 overhead，避免全部集中在单一类别
-            const r = (n: number) => n / totalInput
-            dist.system    += Math.round(overhead * r(dist.system))
-            dist.user      += Math.round(overhead * r(dist.user))
-            dist.agent     += Math.round(overhead * r(dist.agent))
-            dist.toolCall  += Math.round(overhead * r(dist.toolCall))
-            // 尾数归 toolResult 避免累积舍入误差
-            dist.toolResult += overhead - Math.round(overhead * r(dist.system))
-                               - Math.round(overhead * r(dist.user))
-                               - Math.round(overhead * r(dist.agent))
-                               - Math.round(overhead * r(dist.toolCall))
-          } else {
-            dist.system += overhead
-          }
-        }
-        hasDistData = totalInput > 0 || dist.apiOutput > 0 || dist.apiInput > 0
+        hasDistData = dist.system + dist.user + dist.agent + dist.toolCall + dist.toolResult > 0 || dist.apiOutput > 0 || dist.apiInput > 0
       } catch {}
       const finalDist = hasDistData ? dist : lastDist(), finalHasDist = hasDistData || lastHasDist()
       return { finalDist, finalHasDist }
@@ -844,7 +830,7 @@ function TokenCachePanel(props: {
               </text>
             </Show>
             <text fg={pal().text}>
-              {justify(T.distTotal, fmt(data().dist.system + data().dist.user + data().dist.agent + data().dist.toolCall + data().dist.toolResult), T.tok)}
+              {justify(T.distTotal, fmt(data().dist.apiInput), T.tok)}
             </text>
             </Show>
           </Show>
