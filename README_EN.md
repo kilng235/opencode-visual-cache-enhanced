@@ -44,9 +44,9 @@ If you find this plugin useful, a ⭐ would mean a lot — thank you!<br>
 - **Adaptive Colors**: ≥85% green · ≥70% orange · <70% red, auto-desaturated from current theme
 - **Token Distribution**: Per-role (system / user / agent instr / tool call / tool result) estimated token breakdown
 - **Persistent State**: Fold preferences and config remembered across restarts via api.kv
-- **Language**: Auto-detects system locale
+- **Language**: Auto-detects system locale, with `/cache-lang` for runtime switching between Chinese and English — preference persisted across restarts
 - **Multi-currency**: Switch via `/cache-currency` — costs, savings, and per-million rates convert in real time
-- **Slash Commands**: `/cache-rate` `/cache-section` `/cache-config` for live panel configuration
+- **Slash Commands**: `/cache-rate` `/cache-section` `/cache-config` `/cache-lang` for live panel configuration
 
 ---
 
@@ -99,6 +99,7 @@ The plugin supports slash commands and command palette (`Ctrl + P`) for runtime 
 | `/cache-rate` | Adjust exchange rate | Enter a custom rate (e.g. `7.2` for CNY) |
 | `/cache-section` | Toggle sections & border | Independently show/hide Detail, Model & Pricing, Token Distribution, or the panel border |
 | `/cache-config` | View current config | Displays currency, rate, and section visibility |
+| `/cache-lang` | Switch display language | Pick Chinese or English from the dialog — takes effect immediately, no restart needed |
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/splash_cmd.png" alt="Slash command" width="49%"></img>
@@ -162,9 +163,17 @@ Press **`Ctrl + P`** in OpenCode → `install plugin` → `opencode-visual-cache
 
 ---
 
-## 6. Debug
+## 6. Language Settings
 
-Force English:
+The plugin provides three ways to control the display language, listed by priority (highest first):
+
+### 6.1 Runtime Switching (recommended)
+
+Type `/cache-lang` in the TUI and select **Chinese** or **English** from the dialog. The panel switches immediately without restarting, and your preference is persisted automatically for the next session.
+
+### 6.2 Environment Variable Override
+
+Set the `CACHE_TUI_LANG` environment variable before launching to force a specific language:
 
 ```powershell
 # Windows PowerShell
@@ -175,6 +184,10 @@ $env:CACHE_TUI_LANG="en"; opencode
 # macOS / Linux
 CACHE_TUI_LANG=en opencode
 ```
+
+### 6.3 Auto Detection
+
+Defaults to the system locale automatically. If it doesn't match, switch once with `/cache-lang` and the preference will be remembered.
 
 ---
 

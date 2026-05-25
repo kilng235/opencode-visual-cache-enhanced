@@ -44,9 +44,9 @@
 - **颜色自适应**：命中率 ≥85% 绿 · ≥70% 橙 · <70% 红，颜色从主题色自动去饱和
 - **Token 分布**：按角色（系统提示 / 用户 / Agent 指令 / Tool 调用 / Tool 结果）展示估算 Token 占比
 - **折叠记忆**：折叠状态持久化，重启后保持
-- **语言适配**：自动检测系统语言
+- **语言适配**：自动检测系统语言，支持 `/cache-lang` 运行时切换中/英文，偏好持久化
 - **多币种**：通过 `/cache-currency` 切换货币，费用和节省同步换算
-- **斜杠命令**：`/cache-rate` `/cache-section` `/cache-config` 动态配置面板
+- **斜杠命令**：`/cache-rate` `/cache-section` `/cache-config` `/cache-lang` 动态配置面板
 
 ---
 
@@ -99,6 +99,7 @@ npm install -g opencode-visual-cache@latest
 | `/cache-rate` | 调整汇率乘数 | 输入自定义汇率（如 `7.2`），用于费用换算 |
 | `/cache-section` | 开关区块与边框 | 独立控制 Token 明细 / 模型与定价 / 估算 Token 分布 / 面板边框的显隐 |
 | `/cache-config` | 查看当前配置 | 弹出当前货币、汇率、区块可见性状态 |
+| `/cache-lang` | 切换显示语言 | 从列表选择中文或 English，界面即时切换，无需重启 |
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/splash_cmd.png" alt="斜杠命令" width="49%"></img>
@@ -164,9 +165,17 @@ rm -rf ~/.cache/opencode/packages/opencode-visual-cache@latest
 
 ---
 
-## 6. 调试
+## 6. 语言设置
 
-强制英文：
+插件支持三种方式控制显示语言，按优先级从高到低排列：
+
+### 6.1 运行时切换（推荐）
+
+在 TUI 中输入 `/cache-lang`，从弹窗选择「中文」或「English」即可即时切换，无需重启。偏好会自动持久化，下次启动自动恢复。
+
+### 6.2 环境变量覆盖
+
+启动前设置 `CACHE_TUI_LANG` 环境变量可强制指定语言：
 
 ```powershell
 # Windows PowerShell
@@ -177,6 +186,10 @@ $env:CACHE_TUI_LANG="en"; opencode
 # macOS / Linux
 CACHE_TUI_LANG=en opencode
 ```
+
+### 6.3 自动检测
+
+默认自动检测系统语言。若不符合预期，用 `/cache-lang` 手动切换一次即可，偏好会被记住。
 
 ---
 
