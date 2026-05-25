@@ -71,7 +71,7 @@ const LANG_ZH = DEBUG_LANG
       catch { return false }
     })()
 
-const T = LANG_ZH ? {
+const ZH_T = {
   title:      "缓存统计",
   hit:        "命中率",
   totalHit:   "总命中:",
@@ -100,7 +100,9 @@ const T = LANG_ZH ? {
   distOut:    "输出:",
   secDetail:  "明细",
   secModel:   "模型",
-} as const : {
+} as const
+
+const EN_T = {
   title:      "Token Cache",
   hit:        "Hit",
   totalHit:   "Total Hit:",
@@ -317,6 +319,8 @@ interface PanelSignals {
   setCurrencySymbol: (v: string) => void
   exchangeRate: () => number
   setExchangeRate: (v: number) => void
+  langZH: () => boolean
+  setLangZH: (v: boolean) => void
   sectionDetail: () => boolean
   setSectionDetail: (v: boolean) => void
   sectionModel: () => boolean
@@ -365,11 +369,15 @@ function TokenCachePanel(props: {
   const {
     currencySymbol, setCurrencySymbol,
     exchangeRate, setExchangeRate,
+    langZH, setLangZH,
     sectionDetail, setSectionDetail,
     sectionModel, setSectionModel,
     sectionDist, setSectionDist,
     borderVisible, setBorderVisible,
   } = props.signals
+
+  // ── reactive translation (follows langZH signal) ──
+  const t = createMemo(() => langZH() ? ZH_T : EN_T)
 
   // ── scan session messages reactively ──
   // SolidJS createMemo re-evaluates whenever the underlying
@@ -540,6 +548,11 @@ function TokenCachePanel(props: {
         setSectionDist(Boolean(props.api.kv.get(`${KV_PREFIX}.section.dist`, true)))
         const bv = props.api.kv.get<boolean>(`${KV_PREFIX}.border`, true)
         setBorderVisible(bv !== false)
+        // Restore language preference
+        const savedLang = props.api.kv.get<string>(`${KV_PREFIX}.lang`)
+        if (savedLang === "zh" || savedLang === "en") {
+          setLangZH(savedLang === "zh")
+        }
         // Restore distribution snapshot so the token distribution block
         // doesn't blank out while api.state.part() re-hydrates.
         const cachedDist = props.api.kv.get<TokenDist>(`${KV_PREFIX}.dist_snapshot`)
@@ -623,7 +636,7 @@ function TokenCachePanel(props: {
 
   const barW = createMemo(() => {
     const trendSpace = data().hasTrendData ? LABEL_GAP + visualWidth(trendLabel(data().trend)) : 0
-    const overhead = visualWidth(T.hit) + LABEL_GAP + BAR_BRACKETS + BAR_GAP + PCT_FIXED_WIDTH + trendSpace + gutter()
+    const overhead = visualWidth(t().hit) + LABEL_GAP + BAR_BRACKETS + BAR_GAP + PCT_FIXED_WIDTH + trendSpace + gutter()
     return Math.max(3, panelWidth() - overhead)
   })
   const bar = createMemo(() => progressBar(data().hitRate, barW()))
@@ -669,7 +682,7 @@ function TokenCachePanel(props: {
       <text onMouseUp={() => setOpen((o) => { const n = !o; persistFold("open", n); return n })}>
         <span style={{ fg: pal().muted }}>{open() ? "\u25bc " : "\u25b6 "}</span>
         <span style={{ fg: pal().primary }}>
-            <b>{T.title}</b>
+            <b>{t().title}</b>
             <Show when={open()}>
               <span style={{ fg: pal().muted }}> (v{PLUGIN_VERSION})</span>
             </Show>
@@ -677,18 +690,18 @@ function TokenCachePanel(props: {
         <Show when={!open() && data().hasData}>
           <Show when={data().hasTrendData}>
             <span>
-              {" ".repeat(Math.max(1, panelWidth() - gutter() - HEADER_PREFIX - visualWidth(T.title) - visualWidth(pct() + " " + T.hitFolded + " " + trendLabel(data().trend))))}
+              {" ".repeat(Math.max(1, panelWidth() - gutter() - HEADER_PREFIX - visualWidth(t().title) - visualWidth(pct() + " " + t().hitFolded + " " + trendLabel(data().trend))))}
             </span>
-            <span style={{ fg: hitColor() }}>{pct()} {T.hitFolded}</span>
+            <span style={{ fg: hitColor() }}>{pct()} {t().hitFolded}</span>
             <span style={{ fg: data().trend !== 0 ? (data().trend > 0 ? pal().success : pal().error) : pal().text }}>
               {" "}{trendLabel(data().trend)}
             </span>
           </Show>
           <Show when={!data().hasTrendData}>
             <span>
-              {" ".repeat(Math.max(1, panelWidth() - gutter() - HEADER_PREFIX - visualWidth(T.title) - visualWidth(pct() + " " + T.hitFolded)))}
+              {" ".repeat(Math.max(1, panelWidth() - gutter() - HEADER_PREFIX - visualWidth(t().title) - visualWidth(pct() + " " + t().hitFolded)))}
             </span>
-            <span style={{ fg: hitColor() }}>{pct()} {T.hitFolded}</span>
+            <span style={{ fg: hitColor() }}>{pct()} {t().hitFolded}</span>
           </Show>
         </Show>
       </text>
@@ -699,7 +712,7 @@ function TokenCachePanel(props: {
             <text fg={pal().muted}>{sep()}</text>
             <text>
               <span style={{ fg: pal().muted }}>{"> "}</span>
-              <span style={{ fg: pal().muted }}>{T.noData}</span>
+              <span style={{ fg: pal().muted }}>{t().noData}</span>
             </text>
           </>
         }>
@@ -707,7 +720,7 @@ function TokenCachePanel(props: {
 
           {/* hit rate + bar — inline to avoid box spacing */}
           <text>
-            <span style={{ fg: pal().text }}>{T.hit} </span>
+            <span style={{ fg: pal().text }}>{t().hit} </span>
             <span style={{ fg: hitColor() }}>[{bar()}] </span>
             <span style={{ fg: pal().text }}>{pct()}</span>
             <Show when={data().hasTrendData}>
@@ -719,38 +732,38 @@ function TokenCachePanel(props: {
 
           {/* session cumulative hit rate */}
           <text fg={pal().muted}>
-            {justify(T.totalHit, (Math.floor(data().sessionHitRate * 10) / 10).toFixed(1) + "%")}
+            {justify(t().totalHit, (Math.floor(data().sessionHitRate * 10) / 10).toFixed(1) + "%")}
           </text>
 
           {/* ── detail section (collapsible, default open) ── */}
           <Show when={sectionDetail()}>
           <text onMouseUp={() => setDetailOpen((o) => { const n = !o; persistFold("detail", n); return n })}>
             <span style={{ fg: pal().muted }}>{detailOpen() ? "\u25bc " : "\u25b6 "}</span>
-            <span style={{ fg: pal().primary }}><b>{T.secDetail}</b></span>
-            <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((detailOpen() ? "\u25bc " : "\u25b6 ") + T.secDetail))}</span>
+            <span style={{ fg: pal().primary }}><b>{t().secDetail}</b></span>
+            <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((detailOpen() ? "\u25bc " : "\u25b6 ") + t().secDetail))}</span>
           </text>
 
           <Show when={detailOpen()}>
             <Show when={data().read > 0}>
               <text fg={pal().muted}>
-                {justify(T.read,  fmt(data().read),         T.tok)}
+                {justify(t().read,  fmt(data().read),         t().tok)}
               </text>
             </Show>
             <Show when={data().write > 0}>
               <text fg={pal().muted}>
-                {justify(T.write, fmt(data().write),        T.tok)}
+                {justify(t().write, fmt(data().write),        t().tok)}
               </text>
             </Show>
             <text fg={pal().muted}>
-              {justify(T.miss,  fmt(data().freshInput),   T.tok)}
+              {justify(t().miss,  fmt(data().freshInput),   t().tok)}
             </text>
             <text fg={pal().muted}>
-              {justify(T.out,   fmt(data().output),       T.tok)}
+              {justify(t().out,   fmt(data().output),       t().tok)}
             </text>
             <Show when={data().saved > 0}>
               <text>
-                <span style={{ fg: pal().muted }}>{T.saved}</span>
-                <span>{" ".repeat(Math.max(1, panelWidth() - gutter() - visualWidth(T.saved) - visualWidth("~" + fmtCost(data().saved, currencySymbol(), exchangeRate()))))}</span>
+                <span style={{ fg: pal().muted }}>{t().saved}</span>
+                <span>{" ".repeat(Math.max(1, panelWidth() - gutter() - visualWidth(t().saved) - visualWidth("~" + fmtCost(data().saved, currencySymbol(), exchangeRate()))))}</span>
                 <span style={{ fg: pal().success }}>~{fmtCost(data().saved, currencySymbol(), exchangeRate())}</span>
               </text>
             </Show>
@@ -761,34 +774,34 @@ function TokenCachePanel(props: {
           <Show when={sectionModel()}>
           {<text onMouseUp={() => setModelOpen((o) => { const n = !o; persistFold("model", n); return n })}>
             <span style={{ fg: pal().muted }}>{modelOpen() ? "\u25bc " : "\u25b6 "}</span>
-            <span style={{ fg: pal().primary }}><b>{T.secModel}</b></span>
-            <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((modelOpen() ? "\u25bc " : "\u25b6 ") + T.secModel))}</span>
+            <span style={{ fg: pal().primary }}><b>{t().secModel}</b></span>
+            <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((modelOpen() ? "\u25bc " : "\u25b6 ") + t().secModel))}</span>
           </text>}
 
           <Show when={modelOpen()}>
             <text fg={pal().text}>
-              {justify(T.cost,  fmtCost(data().cost, currencySymbol(), exchangeRate()))}
+              {justify(t().cost,  fmtCost(data().cost, currencySymbol(), exchangeRate()))}
             </text>
             <Show when={data().providerName}>
               <text fg={pal().muted}>
-                {justify(T.provider, data().providerName)}
+                {justify(t().provider, data().providerName)}
               </text>
             </Show>
             <text fg={pal().muted}>
-              {justify(T.model, data().model)}
+              {justify(t().model, data().model)}
             </text>
             <Show when={data().hasPricing}>
               <text fg={pal().muted}>
-                {justify(T.rate, currencySymbol() + (data().inputRate * exchangeRate()).toFixed(2) + "/M " + T.inputRate)}
+                {justify(t().rate, currencySymbol() + (data().inputRate * exchangeRate()).toFixed(2) + "/M " + t().inputRate)}
               </text>
               <Show when={data().cacheReadRate > 0}>
                 <text fg={pal().muted}>
-                  {justify("", currencySymbol() + (data().cacheReadRate * exchangeRate()).toFixed(2) + "/M " + T.cacheRate)}
+                  {justify("", currencySymbol() + (data().cacheReadRate * exchangeRate()).toFixed(2) + "/M " + t().cacheRate)}
                 </text>
               </Show>
               <Show when={data().cacheWriteRate > 0}>
                 <text fg={pal().muted}>
-                  {justify("", currencySymbol() + (data().cacheWriteRate * exchangeRate()).toFixed(2) + "/M " + T.writeRate)}
+                  {justify("", currencySymbol() + (data().cacheWriteRate * exchangeRate()).toFixed(2) + "/M " + t().writeRate)}
                 </text>
             </Show>
           </Show>
@@ -800,37 +813,37 @@ function TokenCachePanel(props: {
           <Show when={data().hasDistData}>
             {<text onMouseUp={() => setDistOpen((o) => { const n = !o; persistFold("dist", n); return n })}>
               <span style={{ fg: pal().muted }}>{distOpen() ? "\u25bc " : "\u25b6 "}</span>
-              <span style={{ fg: pal().primary }}><b>{T.distTitle}</b></span>
-              <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((distOpen() ? "\u25bc " : "\u25b6 ") + T.distTitle))}</span>
+              <span style={{ fg: pal().primary }}><b>{t().distTitle}</b></span>
+              <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((distOpen() ? "\u25bc " : "\u25b6 ") + t().distTitle))}</span>
             </text>}
             <Show when={distOpen()}>
             <Show when={data().dist.system > 0}>
               <text fg={pal().muted}>
-                {justify(T.distSys, fmt(data().dist.system), T.tok)}
+                {justify(t().distSys, fmt(data().dist.system), t().tok)}
               </text>
             </Show>
             <Show when={data().dist.user > 0}>
               <text fg={pal().muted}>
-                {justify(T.distUser, fmt(data().dist.user), T.tok)}
+                {justify(t().distUser, fmt(data().dist.user), t().tok)}
               </text>
             </Show>
             <Show when={data().dist.agent > 0}>
               <text fg={pal().muted}>
-                {justify(T.distAgent, fmt(data().dist.agent), T.tok)}
+                {justify(t().distAgent, fmt(data().dist.agent), t().tok)}
               </text>
             </Show>
             <Show when={data().dist.toolCall > 0}>
               <text fg={pal().muted}>
-                {justify(T.distTool, fmt(data().dist.toolCall), T.tok)}
+                {justify(t().distTool, fmt(data().dist.toolCall), t().tok)}
               </text>
             </Show>
             <Show when={data().dist.toolResult > 0}>
               <text fg={pal().muted}>
-                {justify(T.distRes, fmt(data().dist.toolResult), T.tok)}
+                {justify(t().distRes, fmt(data().dist.toolResult), t().tok)}
               </text>
             </Show>
             <text fg={pal().text}>
-              {justify(T.distTotal, fmt(data().dist.apiInput), T.tok)}
+              {justify(t().distTotal, fmt(data().dist.apiInput), t().tok)}
             </text>
             </Show>
           </Show>
@@ -871,10 +884,12 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
   const [sectionModel, setSectionModel] = createSignal(true)
   const [sectionDist, setSectionDist] = createSignal(true)
   const [borderVisible, setBorderVisible] = createSignal(true)
+  const [langZH, setLangZH] = createSignal(LANG_ZH)
 
   const signals: PanelSignals = {
     currencySymbol, setCurrencySymbol,
     exchangeRate, setExchangeRate,
+    langZH, setLangZH,
     sectionDetail, setSectionDetail,
     sectionModel, setSectionModel,
     sectionDist, setSectionDist,
@@ -995,6 +1010,31 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
           duration: 8000,
         })
         dialog?.clear()
+      },
+    },
+    {
+      title: "Cache: Switch Language",
+      value: "cache.lang",
+      description: "Switch between Chinese and English display",
+      slash: { name: "cache-lang" },
+      onSelect: (dialog) => {
+        const cur = langZH()
+        dialog?.replace(() => (
+          <api.ui.DialogSelect
+            title="Display Language"
+            options={[
+              { title: `中文    ${cur ? "\u2713" : ""}`, value: "zh" },
+              { title: `English ${cur ? "" : "\u2713"}`, value: "en" },
+            ]}
+            onSelect={(opt) => {
+              const zh = opt.value === "zh"
+              api.kv.set(`${KV_PREFIX}.lang`, opt.value)
+              setLangZH(zh)
+              api.ui.toast({ message: zh ? "语言已切换为中文" : "Switched to English" })
+              dialog?.clear()
+            }}
+          />
+        ))
       },
     },
   ])
