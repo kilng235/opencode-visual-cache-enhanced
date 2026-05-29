@@ -905,7 +905,7 @@ function TokenCachePanel(props: {
                 {data().skills.map((sk: { name: string; tokens: number }) => {
                   const rightW = visualWidth(fmt(sk.tokens)) + UNIT_GAP + visualWidth(t().tok)
                   const maxLabel = Math.max(4, panelWidth() - gutter() - rightW - 1)
-                  const label = truncateVisual("  " + sk.name, maxLabel)
+                  const label = truncateVisual(sk.name, maxLabel)
                   return (
                     <text fg={pal().muted}>
                       {justify(label, fmt(sk.tokens), t().tok)}
