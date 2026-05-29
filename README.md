@@ -47,6 +47,7 @@
 - **语言适配**：自动检测系统语言，支持 `/cache-lang` 运行时切换中/英文，偏好持久化
 - **多币种**：通过 `/cache-currency` 切换货币，费用和节省同步换算
 - **斜杠命令**：`/cache-rate` `/cache-section` `/cache-config` `/cache-lang` 动态配置面板
+- **已加载技能**：检测 session 中 LLM 调用 `skill` tool 的记录，展示已加载技能名及估算 Token 占用
 
 ---
 
@@ -97,7 +98,7 @@ npm install -g opencode-visual-cache@latest
 |------|------|---------|
 | `/cache-currency` | 切换货币单位 | 从列表选择货币（USD / CNY / EUR / JPY / GBP / KRW），自动填入默认汇率 |
 | `/cache-rate` | 调整汇率乘数 | 输入自定义汇率（如 `7.2`），用于费用换算 |
-| `/cache-section` | 开关区块与边框 | 独立控制 Token 明细 / 模型与定价 / 估算 Token 分布 / 面板边框的显隐 |
+| `/cache-section` | 开关区块与边框 | 独立控制 Token 明细 / 模型与定价 / 估算 Token 分布 / 已加载技能 / 面板边框的显隐 |
 | `/cache-config` | 查看当前配置 | 弹出当前货币、汇率、区块可见性状态 |
 | `/cache-lang` | 切换显示语言 | 从列表选择中文或 English，界面即时切换，无需重启 |
 
@@ -127,11 +128,12 @@ npm install -g opencode-visual-cache@latest
 
 ### 4.3 区块可见性
 
-面板中的三个子区块可以独立关闭，方便在侧边栏空间紧张时隐藏不需要的信息：
+面板中的子区块可以独立关闭，方便在侧边栏空间紧张时隐藏不需要的信息：
 
 - **Token 明细**：缓存读 / 缓存写 / 未命中 / 输出
 - **模型与定价**：费用 / 提供商 / 模型名 / 单价
 - **估算 Token 分布**：按角色拆分的 Token 估算
+- **已加载技能**：session 中 LLM 实际调用过的 Skill 名及估算 Token 占用
 
 通过 `/cache-section` 切换后即时生效，无需重启。此外，该命令还可以开关面板的**外边框**——关闭后内容会顶格显示，释放额外空间。
 

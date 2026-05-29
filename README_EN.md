@@ -47,6 +47,7 @@ If you find this plugin useful, a ⭐ would mean a lot — thank you!<br>
 - **Language**: Auto-detects system locale, with `/cache-lang` for runtime switching between Chinese and English — preference persisted across restarts
 - **Multi-currency**: Switch via `/cache-currency` — costs, savings, and per-million rates convert in real time
 - **Slash Commands**: `/cache-rate` `/cache-section` `/cache-config` `/cache-lang` for live panel configuration
+- **Loaded Skills**: Detects `skill` tool calls in the session and displays loaded skill names with estimated token footprint
 
 ---
 
@@ -97,7 +98,7 @@ The plugin supports slash commands and command palette (`Ctrl + P`) for runtime 
 |---------|----------|------------|
 | `/cache-currency` | Switch currency | Pick from a list (USD / CNY / EUR / JPY / GBP / KRW); default exchange rate auto-filled |
 | `/cache-rate` | Adjust exchange rate | Enter a custom rate (e.g. `7.2` for CNY) |
-| `/cache-section` | Toggle sections & border | Independently show/hide Detail, Model & Pricing, Token Distribution, or the panel border |
+| `/cache-section` | Toggle sections & border | Independently show/hide Detail, Model & Pricing, Token Distribution, Loaded Skills, or the panel border |
 | `/cache-config` | View current config | Displays currency, rate, and section visibility |
 | `/cache-lang` | Switch display language | Pick Chinese or English from the dialog — takes effect immediately, no restart needed |
 
@@ -132,6 +133,7 @@ Three sub-sections can be toggled independently to save sidebar space:
 - **Token Detail**: cache read / write / miss / output
 - **Model & Pricing**: cost / provider / model name / per-million rates
 - **Estimated Token Dist.**: per-role token breakdown
+- **Loaded Skills**: skill names the LLM actually loaded via the `skill` tool, with estimated token counts
 
 Toggled via `/cache-section` — takes effect instantly, no restart required. The same command also toggles the panel **border**; turning it off removes the outline and padding so content fills the full width.
 
