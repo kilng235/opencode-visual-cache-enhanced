@@ -431,16 +431,37 @@ function TokenCachePanel(props: {
 
     // 自然追踪 messages 和 provider（SDK 数据就绪时自动重新执行）
     const msgs = props.api.state.session.messages(sid) as Message[]
-    let input = 0, read = 0, write = 0, output = 0, cost = 0, pid = "", mid = ""
+    const session = props.api.state.session.get(sid)
+
+    // 累计值优先使用 Session 聚合字段（数据库级，不受 sync 层 limit:100 截断）
+    // 若字段不存在（旧版本 SDK），降级到消息遍历累加
+    let input  = session?.tokens?.input ?? 0
+    let read   = session?.tokens?.cache?.read ?? 0
+    let write  = session?.tokens?.cache?.write ?? 0
+    let output = session?.tokens?.output ?? 0
+    let cost   = session?.cost ?? 0
+    let pid    = session?.model?.providerID ?? ""
+    let mid    = session?.model?.id ?? ""
+
+    const fallbackTokens = session?.tokens == null
+    const fallbackCost   = session?.cost == null
+    const fallbackModel  = !pid || !mid
+
     let prevMsgHitRate = -1, lastMsgHitRate = -1
     for (const msg of msgs) {
       if (msg.role !== "assistant") continue
       const t = (msg as AssistantMessage).tokens; if (!t) continue
       const mit = num(t.input) + num(t.cache?.read), mrt = num(t.cache?.read)
       if (mit > 0) { prevMsgHitRate = lastMsgHitRate; lastMsgHitRate = (mrt / mit) * 100 }
-      input += num(t.input); read += num(t.cache?.read); write += num(t.cache?.write); output += num(t.output)
-      cost += num((msg as AssistantMessage).cost)
-      if ((msg as AssistantMessage).providerID && (msg as AssistantMessage).modelID) { pid = (msg as AssistantMessage).providerID; mid = (msg as AssistantMessage).modelID }
+      if (fallbackTokens) {
+        input += num(t.input); read += num(t.cache?.read); write += num(t.cache?.write); output += num(t.output)
+      }
+      if (fallbackCost) {
+        cost += num((msg as AssistantMessage).cost)
+      }
+      if (fallbackModel && (msg as AssistantMessage).providerID && (msg as AssistantMessage).modelID) {
+        pid = (msg as AssistantMessage).providerID; mid = (msg as AssistantMessage).modelID
+      }
     }
     let saved = 0, inputRate = 0, cacheReadRate = 0, cacheWriteRate = 0
     if (read > 0 && pid && mid) for (const provider of props.api.state.provider) {
@@ -462,7 +483,7 @@ function TokenCachePanel(props: {
       let hasDistData = false
       const loadedSkills = new Map<string, { name: string; tokens: number }>()
       try {
-        const session = props.api.state.session.get(sid), cfg = props.api.state.config as Record<string, unknown>
+        const cfg = props.api.state.config as Record<string, unknown>
         const agentName = String(session?.agent ?? (cfg as any)?.default_agent ?? "build")
         const agents = cfg?.agent as Record<string, unknown> | undefined
         const agentCfg = agents?.[agentName] as Record<string, unknown> | undefined
