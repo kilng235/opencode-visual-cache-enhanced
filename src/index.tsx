@@ -431,7 +431,9 @@ function TokenCachePanel(props: {
 
     // 自然追踪 messages 和 provider（SDK 数据就绪时自动重新执行）
     const msgs = props.api.state.session.messages(sid) as Message[]
-    const session = props.api.state.session.get(sid)
+    const session = typeof props.api.state.session.get === "function"
+      ? props.api.state.session.get(sid)
+      : undefined
 
     // 累计值优先使用 Session 聚合字段（数据库级，不受 sync 层 limit:100 截断）
     // 若字段不存在（旧版本 SDK），降级到消息遍历累加
