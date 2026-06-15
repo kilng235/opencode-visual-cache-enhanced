@@ -41,6 +41,10 @@
     "cache-hit-rate",
     "cost-tracking"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hotakus/opencode-visual-cache.git"
+  },
   "license": "MIT",
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.14.0",
