@@ -466,7 +466,7 @@ function TokenCachePanel(props: {
       }
     }
     let saved = 0, inputRate = 0, cacheReadRate = 0, cacheWriteRate = 0
-    if (read > 0 && pid && mid) for (const provider of props.api.state.provider) {
+    if (read > 0 && pid && mid && Array.isArray(props.api.state.provider)) for (const provider of props.api.state.provider) {
       if (provider.id !== pid) continue
       const model = provider.models[mid]; if (!model?.cost) continue
       inputRate = num(model.cost.input); cacheReadRate = num(model.cost.cache?.read); cacheWriteRate = num(model.cost.cache?.write)
@@ -664,8 +664,9 @@ function TokenCachePanel(props: {
     }
     const unsubPart = props.api.event.on("message.part.updated", () => { bumpPartVersion(); setRefreshTick(v => v + 1) })
     const unsubMsg = props.api.event.on("message.updated", () => { bumpPartVersion(); setRefreshTick(v => v + 1) })
+    const unsubSession = props.api.event.on("session.updated", () => { setRefreshTick(v => v + 1) })
     setRefreshTick(v => v + 1)
-    onCleanup(() => { clearTimeout(partTimer); unsubPart(); unsubMsg() })
+    onCleanup(() => { clearTimeout(partTimer); unsubPart(); unsubMsg(); unsubSession() })
   })
 
   // ── colours ──
