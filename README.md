@@ -19,6 +19,10 @@
 
 ---
 
+对 `子代理监控` 感兴趣吗？可以试试 [opencode-subagent-magazine](https://github.com/Hotakus/opencode-subagent-magazine) 这个插件！
+
+---
+
 ## 1. 图片展示
 
 <div align="center"> 

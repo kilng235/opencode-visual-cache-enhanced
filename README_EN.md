@@ -19,6 +19,10 @@ If you find this plugin useful, a ⭐ would mean a lot — thank you!<br>
 
 ---
 
+Interested in sub-agent monitoring? Check out [opencode-subagent-magazine](https://github.com/Hotakus/opencode-subagent-magazine)!
+
+---
+
 ## 1. Screenshots
 
 <div align="center">
