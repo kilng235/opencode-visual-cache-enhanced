@@ -1219,24 +1219,83 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
       description: "View token cache statistics for a sub-agent by session ID",
       slash: { name: "cache-session" },
       onSelect: (dialog) => {
-        dialog?.replace(() => (
-          <api.ui.DialogPrompt
-            title={signals.overrideSessionId() ? langZH() ? "切换子代理" : "Switch Sub" : langZH() ? "查看子代理缓存" : "View Sub Cache"}
-            description={() => <text>{langZH() ? "粘贴子代理 Session ID 以查看其缓存统计" : "Paste a sub-agent session ID to view its cache stats"}</text>}
-            placeholder="ses_..."
-            value={signals.overrideSessionId() ?? api.kv.get<string>(`${KV_PREFIX}.session`, "") ?? ""}
-            onConfirm={(val) => {
-              const sid = val.trim()
-              if (sid) {
-                signals.setOverrideSessionId(sid)
-                api.kv.set(`${KV_PREFIX}.session`, sid)
-                api.ui.toast({ message: `Now showing cache stats for: ${sid.slice(0, 20)}…` })
+        // ── 扫描当前主 session 的子代理 session ID 列表 ──
+        const rt = api.route.current
+        const parentSid = rt.name === "session" && rt.params ? String(rt.params.sessionID) : ""
+        const SUBAGENT_TOOLS = new Set(["task", "delegate", "call_omo_agent"])
+
+        interface ChildEntry { title: string; value: string; description: string }
+        const children: ChildEntry[] = []
+        if (parentSid) {
+          try {
+            const msgs = api.state.session.messages(parentSid)
+            for (const msg of msgs) {
+              if (msg.role !== "assistant") continue
+              let parts: readonly Part[] = []
+              try { parts = api.state.part(msg.id) } catch {}
+              for (const p of parts) {
+                if (p.type !== "tool") continue
+                const tool = String((p as ToolPart).tool ?? "")
+                if (!SUBAGENT_TOOLS.has(tool)) continue
+                const st = (p as any).state as Record<string, unknown> | undefined
+                const stMeta = st?.metadata as Record<string, unknown> | undefined
+                const subSid = stMeta?.session_id ?? stMeta?.sessionId
+                if (!subSid) continue
+                const sidStr = String(subSid)
+                const input = st?.input as Record<string, unknown> | undefined
+                const agent = String((p as any).subagent_type ?? input?.subagent_type ?? input?.category ?? tool)
+                const prompt = String(input?.prompt ?? "")
+                const desc = input?.description ? String(input.description) : ""
+                const title = desc || prompt.replace(/\n/g, " ").replace(/\s+/g, " ").trim().slice(0, 40) || agent
+                children.push({ title, value: sidStr, description: `${agent} · ${sidStr.slice(0, 24)}…` })
               }
-              dialog?.clear()
-            }}
-            onCancel={() => dialog?.clear()}
-          />
-        ))
+            }
+          } catch {}
+        }
+
+        // 去重
+        const seen = new Set<string>()
+        const unique = children.filter(c => { if (seen.has(c.value)) return false; seen.add(c.value); return true })
+
+        if (unique.length > 0) {
+          // ── 有子代理 → DialogSelect 列表选择 ──
+          const currentSid = signals.overrideSessionId() ?? api.kv.get<string>(`${KV_PREFIX}.session`, "")
+          const currentIdx = currentSid ? unique.findIndex(o => o.value === currentSid) : -1
+          dialog?.replace(() => (
+            <api.ui.DialogSelect
+              title={langZH() ? "选择子代理" : "Select Sub-Agent"}
+              options={unique.map(c => ({ title: c.title, value: c.value, description: c.description }))}
+              current={currentIdx >= 0 ? unique[currentIdx].value : undefined}
+              onSelect={(opt) => {
+                signals.setOverrideSessionId(opt.value)
+                api.kv.set(`${KV_PREFIX}.session`, opt.value)
+                api.ui.toast({ message: (langZH() ? "已切换至子代理: " : "Showing sub-agent: ") + opt.value.slice(0, 24) + "\u2026" })
+                dialog?.clear()
+              }}
+            />
+          ))
+        } else {
+          // ── 无子代理 → DialogPrompt 手动粘贴 ──
+          const zh = langZH()
+          dialog?.replace(() => (
+            <api.ui.DialogPrompt
+              title={signals.overrideSessionId() ? zh ? "切换子代理" : "Switch Sub" : zh ? "查看子代理缓存" : "View Sub Cache"}
+              description={() => <text>{zh ? "未找到子代理，请手动粘贴 Session ID" : "No sub-agents found. Paste a Session ID manually"}</text>}
+              placeholder="ses_..."
+              value={signals.overrideSessionId() ?? api.kv.get<string>(`${KV_PREFIX}.session`, "") ?? ""}
+              onConfirm={(val) => {
+                const sid = val.trim()
+                if (sid) {
+                  signals.setOverrideSessionId(sid)
+                  api.kv.set(`${KV_PREFIX}.session`, sid)
+                  api.ui.toast({ message: (langZH() ? "已切换至子代理: " : "Showing sub-agent: ") + sid.slice(0, 24) + "\u2026" })
+                }
+                dialog?.clear()
+              }}
+              onCancel={() => dialog?.clear()}
+            />
+          ))
+        }
       },
     },
     {
@@ -1247,7 +1306,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
       onSelect: (dialog) => {
         signals.setOverrideSessionId(undefined)
         api.kv.set(`${KV_PREFIX}.session`, "")
-        api.ui.toast({ message: "Switched back to main session" })
+        api.ui.toast({ message: langZH() ? "已切回主会话" : "Switched to main session" })
         dialog?.clear()
       },
     },
