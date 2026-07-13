@@ -50,7 +50,8 @@
 - **折叠记忆**：折叠状态持久化，重启后保持
 - **语言适配**：自动检测系统语言，支持 `/cache-lang` 运行时切换中/英文，偏好持久化
 - **多币种**：通过 `/cache-currency` 切换货币，费用和节省同步换算
-- **斜杠命令**：`/cache-rate` `/cache-section` `/cache-config` `/cache-lang` 动态配置面板
+- **斜杠命令**：`/cache-session` `/cache-session-back` `/cache-rate` `/cache-section` `/cache-config` `/cache-lang` 动态配置面板
+- **子代理缓存查看**：`/cache-session` 自动扫描并列出子代理，选择一个即可切换面板显示其缓存统计，支持 `/cache-session-back` 返回主会话
 - **已加载技能**：检测 session 中 LLM 调用 `skill` tool 的记录，展示已加载技能名及估算 Token 占用
 
 ---
@@ -100,6 +101,8 @@ npm install -g opencode-visual-cache@latest
 
 | 命令 | 功能 | 使用方式 |
 |------|------|---------|
+| `/cache-session` | 查看子代理缓存统计 | 自动列出子代理供选择，或手动粘贴 Session ID 切换面板数据源 |
+| `/cache-session-back` | 返回主会话统计 | 从子代理缓存视图切回主会话 |
 | `/cache-currency` | 切换货币单位 | 从列表选择货币（USD / CNY / EUR / JPY / GBP / KRW），自动填入默认汇率 |
 | `/cache-rate` | 调整汇率乘数 | 输入自定义汇率（如 `7.2`），用于费用换算 |
 | `/cache-section` | 开关区块与边框 | 独立控制 Token 明细 / 模型与定价 / 估算 Token 分布 / 已加载技能 / 面板边框的显隐 |

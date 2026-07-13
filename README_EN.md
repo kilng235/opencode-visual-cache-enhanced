@@ -50,7 +50,8 @@ Interested in sub-agent monitoring? Check out [opencode-subagent-magazine](https
 - **Persistent State**: Fold preferences and config remembered across restarts via api.kv
 - **Language**: Auto-detects system locale, with `/cache-lang` for runtime switching between Chinese and English — preference persisted across restarts
 - **Multi-currency**: Switch via `/cache-currency` — costs, savings, and per-million rates convert in real time
-- **Slash Commands**: `/cache-rate` `/cache-section` `/cache-config` `/cache-lang` for live panel configuration
+- **Slash Commands**: `/cache-session` `/cache-session-back` `/cache-rate` `/cache-section` `/cache-config` `/cache-lang` for live panel configuration
+- **Sub-Agent Cache View**: `/cache-session` auto-scans and lists sub-agents; select one to switch the panel stats. Use `/cache-session-back` to return to the main session
 - **Loaded Skills**: Detects `skill` tool calls in the session and displays loaded skill names with estimated token footprint
 
 ---
@@ -100,6 +101,8 @@ The plugin supports slash commands and command palette (`Ctrl + P`) for runtime 
 
 | Command | Function | How to use |
 |---------|----------|------------|
+| `/cache-session` | View sub-agent cache stats | Lists sub-agents automatically, or paste a Session ID to switch the panel data source |
+| `/cache-session-back` | Return to main session | Switch back to main session from sub-agent cache view |
 | `/cache-currency` | Switch currency | Pick from a list (USD / CNY / EUR / JPY / GBP / KRW); default exchange rate auto-filled |
 | `/cache-rate` | Adjust exchange rate | Enter a custom rate (e.g. `7.2` for CNY) |
 | `/cache-section` | Toggle sections & border | Independently show/hide Detail, Model & Pricing, Token Distribution, Loaded Skills, or the panel border |
