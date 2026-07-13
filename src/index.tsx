@@ -223,6 +223,16 @@ function desaturateTo(raw: unknown, maxSat: number, fallback: string): string {
   return "#" + [nr, ng, nb].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0")).join("")
 }
 
+/** Darken a hex colour by multiplying each channel by `factor` (0–1). */
+function dimColor(hex: string, factor = 0.5): string {
+  const c = rgb(hex)
+  if (!c) return hex
+  const r = Math.round(c.r * factor)
+  const g = Math.round(c.g * factor)
+  const b = Math.round(c.b * factor)
+  return "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0")).join("")
+}
+
 // Morandi fallbacks — used when a theme colour cannot be resolved
 const FALLBACK = {
   primary: "#8B9DAF",
@@ -767,7 +777,7 @@ function TokenCachePanel(props: {
         <span style={{ fg: pal().primary }}>
             <b>{t().title}</b>
             <Show when={open()}>
-              <span style={{ fg: pal().muted }}> (v{PLUGIN_VERSION})</span>
+              <span style={{ fg: dimColor(pal().muted, 0.75) }}> v{PLUGIN_VERSION}</span>
             </Show>
           </span>
         <Show when={!open() && data().hasData}>
