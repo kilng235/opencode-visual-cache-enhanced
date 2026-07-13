@@ -1259,17 +1259,34 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
 
         if (unique.length > 0) {
           // ── 有子代理 → DialogSelect 列表选择 ──
+          const zh = langZH()
           const currentSid = signals.overrideSessionId() ?? api.kv.get<string>(`${KV_PREFIX}.session`, "")
-          const currentIdx = currentSid ? unique.findIndex(o => o.value === currentSid) : -1
+          const options = unique.map((c, i) => ({
+            title: `${i + 1}. ${c.title}`,
+            value: c.value,
+            description: c.description,
+          }))
+          // 首尾各放一个"回到主会话"，长列表时顶部底部均可直达
+          const backValue = "__main__"
+          const backTitle = `\u2500 ${zh ? "\u56DE\u5230\u4E3B\u4F1A\u8BDD" : "Back to Main"}`
+          options.unshift({ title: backTitle, value: backValue, description: "" })
+          options.push({ title: backTitle, value: backValue, description: "" })
+          const currentIdx = currentSid ? options.findIndex(o => o.value === currentSid) : -1
           dialog?.replace(() => (
             <api.ui.DialogSelect
-              title={langZH() ? "选择子代理" : "Select Sub-Agent"}
-              options={unique.map(c => ({ title: c.title, value: c.value, description: c.description }))}
-              current={currentIdx >= 0 ? unique[currentIdx].value : undefined}
+              title={zh ? "选择子代理" : "Select Sub-Agent"}
+              options={options}
+              current={currentIdx >= 0 ? options[currentIdx].value : undefined}
               onSelect={(opt) => {
-                signals.setOverrideSessionId(opt.value)
-                api.kv.set(`${KV_PREFIX}.session`, opt.value)
-                api.ui.toast({ message: (langZH() ? "已切换至子代理: " : "Showing sub-agent: ") + opt.value.slice(0, 24) + "\u2026" })
+                if (opt.value === backValue) {
+                  signals.setOverrideSessionId(undefined)
+                  api.kv.set(`${KV_PREFIX}.session`, "")
+                  api.ui.toast({ message: zh ? "已切回主会话" : "Switched to main session" })
+                } else {
+                  signals.setOverrideSessionId(opt.value)
+                  api.kv.set(`${KV_PREFIX}.session`, opt.value)
+                  api.ui.toast({ message: (zh ? "已切换至子代理: " : "Showing sub-agent: ") + opt.value.slice(0, 24) + "\u2026" })
+                }
                 dialog?.clear()
               }}
             />
