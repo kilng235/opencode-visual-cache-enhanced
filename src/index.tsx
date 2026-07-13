@@ -223,6 +223,16 @@ function desaturateTo(raw: unknown, maxSat: number, fallback: string): string {
   return "#" + [nr, ng, nb].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0")).join("")
 }
 
+/** Darken a hex colour by multiplying each channel by `factor` (0–1). */
+function dimColor(hex: string, factor = 0.5): string {
+  const c = rgb(hex)
+  if (!c) return hex
+  const r = Math.round(c.r * factor)
+  const g = Math.round(c.g * factor)
+  const b = Math.round(c.b * factor)
+  return "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0")).join("")
+}
+
 // Morandi fallbacks — used when a theme colour cannot be resolved
 const FALLBACK = {
   primary: "#8B9DAF",
@@ -345,6 +355,9 @@ interface PanelSignals {
   setSectionSkills: (v: boolean) => void
   borderVisible: () => boolean
   setBorderVisible: (v: boolean) => void
+  /** When set, the panel renders stats for this session instead of the main one. */
+  overrideSessionId: () => string | undefined
+  setOverrideSessionId: (v: string | undefined) => void
 }
 
 const CURRENCIES: Record<string, string> = {
@@ -424,8 +437,21 @@ function TokenCachePanel(props: {
   })
   const [refreshTick, setRefreshTick] = createSignal(0)
 
+  // ── auto-clear override when the user navigates to a different main session ──
+  let lastMainSid = props.sessionId
   createEffect(() => {
     const sid = props.sessionId
+    if (sid !== lastMainSid) {
+      lastMainSid = sid
+      if (props.signals.overrideSessionId()) {
+        props.signals.setOverrideSessionId(undefined)
+        props.api.kv.set(`${KV_PREFIX}.session`, "")
+      }
+    }
+  })
+
+  createEffect(() => {
+    const sid = props.signals.overrideSessionId() ?? props.sessionId
     void refreshTick()
     void partVersion()
 
@@ -751,7 +777,7 @@ function TokenCachePanel(props: {
         <span style={{ fg: pal().primary }}>
             <b>{t().title}</b>
             <Show when={open()}>
-              <span style={{ fg: pal().muted }}> (v{PLUGIN_VERSION})</span>
+              <span style={{ fg: dimColor(pal().muted, 0.75) }}> v{PLUGIN_VERSION}</span>
             </Show>
           </span>
         <Show when={!open() && data().hasData}>
@@ -774,6 +800,18 @@ function TokenCachePanel(props: {
       </text>
 
       <Show when={open()}>
+        <Show when={props.signals.overrideSessionId()}>
+          {(() => {
+            const prefix = "  \u21b3 " + (langZH() ? "\u5B50\u4EE3\u7406: " : "Sub: ")
+            const maxSidW = Math.max(6, panelWidth() - visualWidth(prefix))
+            return (
+              <text>
+                <span style={{ fg: pal().muted }}>{prefix}</span>
+                <span style={{ fg: pal().text }}>{truncateVisual(props.signals.overrideSessionId()!, maxSidW)}</span>
+              </text>
+            )
+          })()}
+        </Show>
         <Show when={data().hasData} fallback={
           <>
             <text fg={pal().muted}>{sep()}</text>
@@ -950,10 +988,19 @@ function TokenCachePanel(props: {
 // ---------------------------------------------------------------------------
 
 function createSidebarSlot(api: TuiPluginApi, signals: PanelSignals): TuiSlotPlugin {
+  let lastSlotSid = ""
   return {
     order: 55,
     slots: {
       sidebar_content(ctx: TuiSlotContext, input: { session_id: string }): JSX.Element {
+        // ── auto-clear override when the user navigates to a different main session ──
+        if (input.session_id !== lastSlotSid) {
+          lastSlotSid = input.session_id
+          if (signals.overrideSessionId()) {
+            signals.setOverrideSessionId(undefined)
+            api.kv.set("cache_panel.session", "")
+          }
+        }
         return (
           <TokenCachePanel
             theme={ctx.theme.current}
@@ -977,6 +1024,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
   const [sectionSkills, setSectionSkills] = createSignal(true)
   const [borderVisible, setBorderVisible] = createSignal(true)
   const [langZH, setLangZH] = createSignal(LANG_ZH)
+  const [overrideSessionId, setOverrideSessionId] = createSignal<string | undefined>(undefined)
 
   const signals: PanelSignals = {
     currencySymbol, setCurrencySymbol,
@@ -987,6 +1035,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
     sectionDist, setSectionDist,
     sectionSkills, setSectionSkills,
     borderVisible, setBorderVisible,
+    overrideSessionId, setOverrideSessionId,
   }
 
   api.slots.register(createSidebarSlot(api, signals))
@@ -1172,6 +1221,120 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
           message: summary + extra,
           duration: 15000,
         })
+      },
+    },
+    {
+      title: "Cache: Sub-Agent Stats",
+      value: "cache.session",
+      description: "View token cache statistics for a sub-agent by session ID",
+      slash: { name: "cache-session" },
+      onSelect: (dialog) => {
+        // ── 扫描当前主 session 的子代理 session ID 列表 ──
+        const rt = api.route.current
+        const parentSid = rt.name === "session" && rt.params ? String(rt.params.sessionID) : ""
+        const SUBAGENT_TOOLS = new Set(["task", "delegate", "call_omo_agent"])
+
+        interface ChildEntry { title: string; value: string; description: string }
+        const children: ChildEntry[] = []
+        if (parentSid) {
+          try {
+            const msgs = api.state.session.messages(parentSid)
+            for (const msg of msgs) {
+              if (msg.role !== "assistant") continue
+              let parts: readonly Part[] = []
+              try { parts = api.state.part(msg.id) } catch {}
+              for (const p of parts) {
+                if (p.type !== "tool") continue
+                const tool = String((p as ToolPart).tool ?? "")
+                if (!SUBAGENT_TOOLS.has(tool)) continue
+                const st = (p as any).state as Record<string, unknown> | undefined
+                const stMeta = st?.metadata as Record<string, unknown> | undefined
+                const subSid = stMeta?.session_id ?? stMeta?.sessionId
+                if (!subSid) continue
+                const sidStr = String(subSid)
+                const input = st?.input as Record<string, unknown> | undefined
+                const agent = String((p as any).subagent_type ?? input?.subagent_type ?? input?.category ?? tool)
+                const prompt = String(input?.prompt ?? "")
+                const desc = input?.description ? String(input.description) : ""
+                const title = desc || prompt.replace(/\n/g, " ").replace(/\s+/g, " ").trim().slice(0, 40) || agent
+                children.push({ title, value: sidStr, description: `${agent} · ${sidStr.slice(0, 24)}…` })
+              }
+            }
+          } catch {}
+        }
+
+        // 去重
+        const seen = new Set<string>()
+        const unique = children.filter(c => { if (seen.has(c.value)) return false; seen.add(c.value); return true })
+
+        if (unique.length > 0) {
+          // ── 有子代理 → DialogSelect 列表选择 ──
+          const zh = langZH()
+          const currentSid = signals.overrideSessionId() ?? api.kv.get<string>(`${KV_PREFIX}.session`, "")
+          const options = unique.map((c, i) => ({
+            title: `${i + 1}. ${c.title}`,
+            value: c.value,
+            description: c.description,
+          }))
+          // 首尾各放一个"回到主会话"，长列表时顶部底部均可直达
+          const backValue = "__main__"
+          const backTitle = `\u2500 ${zh ? "\u56DE\u5230\u4E3B\u4F1A\u8BDD" : "Back to Main"}`
+          options.unshift({ title: backTitle, value: backValue, description: "" })
+          options.push({ title: backTitle, value: backValue, description: "" })
+          const currentIdx = currentSid ? options.findIndex(o => o.value === currentSid) : -1
+          dialog?.replace(() => (
+            <api.ui.DialogSelect
+              title={zh ? "选择子代理" : "Select Sub-Agent"}
+              options={options}
+              current={currentIdx >= 0 ? options[currentIdx].value : undefined}
+              onSelect={(opt) => {
+                if (opt.value === backValue) {
+                  signals.setOverrideSessionId(undefined)
+                  api.kv.set(`${KV_PREFIX}.session`, "")
+                  api.ui.toast({ message: zh ? "已切回主会话" : "Switched to main session" })
+                } else {
+                  signals.setOverrideSessionId(opt.value)
+                  api.kv.set(`${KV_PREFIX}.session`, opt.value)
+                  api.ui.toast({ message: (zh ? "已切换至子代理: " : "Showing sub-agent: ") + opt.value.slice(0, 24) + "\u2026" })
+                }
+                dialog?.clear()
+              }}
+            />
+          ))
+        } else {
+          // ── 无子代理 → DialogPrompt 手动粘贴 ──
+          const zh = langZH()
+          dialog?.replace(() => (
+            <api.ui.DialogPrompt
+              title={signals.overrideSessionId() ? zh ? "切换子代理" : "Switch Sub" : zh ? "查看子代理缓存" : "View Sub Cache"}
+              description={() => <text>{zh ? "未找到子代理，请手动粘贴 Session ID" : "No sub-agents found. Paste a Session ID manually"}</text>}
+              placeholder="ses_..."
+              value={signals.overrideSessionId() ?? api.kv.get<string>(`${KV_PREFIX}.session`, "") ?? ""}
+              onConfirm={(val) => {
+                const sid = val.trim()
+                if (sid) {
+                  signals.setOverrideSessionId(sid)
+                  api.kv.set(`${KV_PREFIX}.session`, sid)
+                  api.ui.toast({ message: (langZH() ? "已切换至子代理: " : "Showing sub-agent: ") + sid.slice(0, 24) + "\u2026" })
+                }
+                dialog?.clear()
+              }}
+              onCancel={() => dialog?.clear()}
+            />
+          ))
+        }
+      },
+    },
+    {
+      title: "Cache: Back to Main",
+      value: "cache.session.back",
+      description: "Return to main session stats",
+      slash: { name: "cache-session-back" },
+      onSelect: (dialog) => {
+        signals.setOverrideSessionId(undefined)
+        api.kv.set(`${KV_PREFIX}.session`, "")
+        api.ui.toast({ message: langZH() ? "已切回主会话" : "Switched to main session" })
+        dialog?.clear()
       },
     },
   ])
