@@ -345,6 +345,9 @@ interface PanelSignals {
   setSectionSkills: (v: boolean) => void
   borderVisible: () => boolean
   setBorderVisible: (v: boolean) => void
+  /** When set, the panel renders stats for this session instead of the main one. */
+  overrideSessionId: () => string | undefined
+  setOverrideSessionId: (v: string | undefined) => void
 }
 
 const CURRENCIES: Record<string, string> = {
@@ -424,8 +427,21 @@ function TokenCachePanel(props: {
   })
   const [refreshTick, setRefreshTick] = createSignal(0)
 
+  // ── auto-clear override when the user navigates to a different main session ──
+  let lastMainSid = props.sessionId
   createEffect(() => {
     const sid = props.sessionId
+    if (sid !== lastMainSid) {
+      lastMainSid = sid
+      if (props.signals.overrideSessionId()) {
+        props.signals.setOverrideSessionId(undefined)
+        props.api.kv.set(`${KV_PREFIX}.session`, "")
+      }
+    }
+  })
+
+  createEffect(() => {
+    const sid = props.signals.overrideSessionId() ?? props.sessionId
     void refreshTick()
     void partVersion()
 
@@ -774,6 +790,18 @@ function TokenCachePanel(props: {
       </text>
 
       <Show when={open()}>
+        <Show when={props.signals.overrideSessionId()}>
+          {(() => {
+            const prefix = "  \u21b3 " + (langZH() ? "\u5B50\u4EE3\u7406: " : "Sub: ")
+            const maxSidW = Math.max(6, panelWidth() - visualWidth(prefix))
+            return (
+              <text>
+                <span style={{ fg: pal().muted }}>{prefix}</span>
+                <span style={{ fg: pal().text }}>{truncateVisual(props.signals.overrideSessionId()!, maxSidW)}</span>
+              </text>
+            )
+          })()}
+        </Show>
         <Show when={data().hasData} fallback={
           <>
             <text fg={pal().muted}>{sep()}</text>
@@ -950,10 +978,19 @@ function TokenCachePanel(props: {
 // ---------------------------------------------------------------------------
 
 function createSidebarSlot(api: TuiPluginApi, signals: PanelSignals): TuiSlotPlugin {
+  let lastSlotSid = ""
   return {
     order: 55,
     slots: {
       sidebar_content(ctx: TuiSlotContext, input: { session_id: string }): JSX.Element {
+        // ── auto-clear override when the user navigates to a different main session ──
+        if (input.session_id !== lastSlotSid) {
+          lastSlotSid = input.session_id
+          if (signals.overrideSessionId()) {
+            signals.setOverrideSessionId(undefined)
+            api.kv.set("cache_panel.session", "")
+          }
+        }
         return (
           <TokenCachePanel
             theme={ctx.theme.current}
@@ -977,6 +1014,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
   const [sectionSkills, setSectionSkills] = createSignal(true)
   const [borderVisible, setBorderVisible] = createSignal(true)
   const [langZH, setLangZH] = createSignal(LANG_ZH)
+  const [overrideSessionId, setOverrideSessionId] = createSignal<string | undefined>(undefined)
 
   const signals: PanelSignals = {
     currencySymbol, setCurrencySymbol,
@@ -987,6 +1025,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
     sectionDist, setSectionDist,
     sectionSkills, setSectionSkills,
     borderVisible, setBorderVisible,
+    overrideSessionId, setOverrideSessionId,
   }
 
   api.slots.register(createSidebarSlot(api, signals))
@@ -1172,6 +1211,44 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
           message: summary + extra,
           duration: 15000,
         })
+      },
+    },
+    {
+      title: "Cache: Sub-Agent Stats",
+      value: "cache.session",
+      description: "View token cache statistics for a sub-agent by session ID",
+      slash: { name: "cache-session" },
+      onSelect: (dialog) => {
+        dialog?.replace(() => (
+          <api.ui.DialogPrompt
+            title={signals.overrideSessionId() ? langZH() ? "切换子代理" : "Switch Sub" : langZH() ? "查看子代理缓存" : "View Sub Cache"}
+            description={() => <text>{langZH() ? "粘贴子代理 Session ID 以查看其缓存统计" : "Paste a sub-agent session ID to view its cache stats"}</text>}
+            placeholder="ses_..."
+            value={signals.overrideSessionId() ?? api.kv.get<string>(`${KV_PREFIX}.session`, "") ?? ""}
+            onConfirm={(val) => {
+              const sid = val.trim()
+              if (sid) {
+                signals.setOverrideSessionId(sid)
+                api.kv.set(`${KV_PREFIX}.session`, sid)
+                api.ui.toast({ message: `Now showing cache stats for: ${sid.slice(0, 20)}…` })
+              }
+              dialog?.clear()
+            }}
+            onCancel={() => dialog?.clear()}
+          />
+        ))
+      },
+    },
+    {
+      title: "Cache: Back to Main",
+      value: "cache.session.back",
+      description: "Return to main session stats",
+      slash: { name: "cache-session-back" },
+      onSelect: (dialog) => {
+        signals.setOverrideSessionId(undefined)
+        api.kv.set(`${KV_PREFIX}.session`, "")
+        api.ui.toast({ message: "Switched back to main session" })
+        dialog?.clear()
       },
     },
   ])
