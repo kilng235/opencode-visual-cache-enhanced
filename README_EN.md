@@ -117,8 +117,8 @@ The plugin supports slash commands and command palette (`Ctrl + P`) for runtime 
 | `/cache-lang` | Switch display language | Pick Chinese or English from the dialog — takes effect immediately, no restart needed |
 
 <div align="center">
-<img src="assets/splash_cmd.png" alt="Slash command" width="49%"></img>
-<img src="assets/ctrlP_cmd.png" alt="Ctrl+P command palette" width="49%"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/splash_cmd.png" alt="Slash command" width="49%"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/ctrlP_cmd.png" alt="Ctrl+P command palette" width="49%"></img>
 </div>
 
 Switching currency automatically applies a built-in approximate exchange rate (USD-based). Override it anytime with `/cache-rate`.
