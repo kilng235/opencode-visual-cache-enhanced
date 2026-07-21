@@ -17,6 +17,8 @@
 
 </div>
 
+> 本项目基于 [Hotakus/opencode-visual-cache](https://github.com/Hotakus/opencode-visual-cache) 二改。
+
 ---
 
 对 `子代理监控` 感兴趣吗？可以试试 [opencode-subagent-magazine](https://github.com/Hotakus/opencode-subagent-magazine) 这个插件！

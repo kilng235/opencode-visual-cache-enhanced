@@ -17,6 +17,8 @@ If you find this plugin useful, a ⭐ would mean a lot — thank you!<br>
 
 </div>
 
+> This project is a second modification (二改) based on [Hotakus/opencode-visual-cache](https://github.com/Hotakus/opencode-visual-cache).
+
 ---
 
 Interested in sub-agent monitoring? Check out [opencode-subagent-magazine](https://github.com/Hotakus/opencode-subagent-magazine)!
