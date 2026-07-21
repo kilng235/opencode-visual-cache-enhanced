@@ -1345,7 +1345,8 @@ function TokenCachePanel(props: {
                   </text>
                   <Show when={gitFilesOpen()}>
                     {gitState().files.map((f: string) => {
-                      const short = f.length > panelWidth() - gutter() - 2 ? "\u2026" + f.slice(-(panelWidth() - gutter() - 3)) : f
+                      const name = f.split("/").pop() || f
+                      const short = name.length > panelWidth() - gutter() - 2 ? "\u2026" + name.slice(-(panelWidth() - gutter() - 3)) : name
                       return (
                         <text fg={pal().muted}>
                           {"  "}{short}
