@@ -432,7 +432,7 @@ interface GitStatus {
   isRepo: boolean
 }
 
-const GIT_POLL_MS = 30 * 1000 // 30 seconds
+const GIT_POLL_MS = 15 * 1000 // 30 seconds
 const GIT_MAX_FILES = 15 // cap displayed file list
 
 function fetchGitStatus(): GitStatus {
