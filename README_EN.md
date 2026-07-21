@@ -29,8 +29,8 @@ Interested in sub-agent monitoring? Check out [opencode-subagent-magazine](https
 
 <div align="center">
 <strong>Collapsed 👇</strong> <br>
-<img src="assets/collapse.png"></img>
-<img src="assets/collapse_en.png"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse.png"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse_en.png"></img>
 </div>
 <div align="center">
 <strong>Expanded 👇</strong> <br>

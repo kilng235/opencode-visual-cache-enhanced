@@ -29,8 +29,8 @@
 
 <div align="center"> 
 <strong>支持折叠，节省侧边栏占用👇</strong> <br>
-<img src="assets/collapse.png"></img>
-<img src="assets/collapse_en.png"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse.png"></img>
+<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse_en.png"></img>
 </div>
 <div align="center"> 
 <strong>展开👇</strong> <br>
