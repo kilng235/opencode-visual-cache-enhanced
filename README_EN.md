@@ -29,13 +29,13 @@ Interested in sub-agent monitoring? Check out [opencode-subagent-magazine](https
 
 <div align="center">
 <strong>Collapsed 👇</strong> <br>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse.png"></img>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse_en.png"></img>
+<img src="assets/collapse.png"></img>
+<img src="assets/collapse_en.png"></img>
 </div>
 <div align="center">
 <strong>Expanded 👇</strong> <br>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/expand.png"></img>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/expand_en.png"></img>
+<img src="assets/expand.png"></img>
+<img src="assets/expand_en.png"></img>
 </div>
 
 ---
@@ -117,8 +117,8 @@ The plugin supports slash commands and command palette (`Ctrl + P`) for runtime 
 | `/cache-lang` | Switch display language | Pick Chinese or English from the dialog — takes effect immediately, no restart needed |
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/splash_cmd.png" alt="Slash command" width="49%"></img>
-  <img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/ctrlP_cmd.png" alt="Ctrl+P command palette" width="49%"></img>
+<img src="assets/splash_cmd.png" alt="Slash command" width="49%"></img>
+<img src="assets/ctrlP_cmd.png" alt="Ctrl+P command palette" width="49%"></img>
 </div>
 
 Switching currency automatically applies a built-in approximate exchange rate (USD-based). Override it anytime with `/cache-rate`.

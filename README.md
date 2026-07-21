@@ -29,13 +29,13 @@
 
 <div align="center"> 
 <strong>支持折叠，节省侧边栏占用👇</strong> <br>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse.png"></img>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/collapse_en.png"></img>
+<img src="assets/collapse.png"></img>
+<img src="assets/collapse_en.png"></img>
 </div>
 <div align="center"> 
 <strong>展开👇</strong> <br>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/expand.png"></img>
-<img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/expand_en.png"></img>
+<img src="assets/expand.png"></img>
+<img src="assets/expand_en.png"></img>
 </div>
 
 
@@ -117,8 +117,8 @@ npm install -g opencode-visual-cache@latest
 | `/cache-lang` | 切换显示语言 | 从列表选择中文或 English，界面即时切换，无需重启 |
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/splash_cmd.png" alt="斜杠命令" width="49%"></img>
-  <img src="https://raw.githubusercontent.com/Hotakus/opencode-visual-cache/master/assets/ctrlP_cmd.png" alt="Ctrl+P 命令面板" width="49%"></img>
+<img src="assets/splash_cmd.png" alt="斜杠命令" width="49%"></img>
+<img src="assets/ctrlP_cmd.png" alt="Ctrl+P 命令面板" width="49%"></img>
 </div>
 
 切换货币时会自动填入离线内置的近似汇率（以 USD 为基准），用户可随时通过 `/cache-rate` 自定义。
