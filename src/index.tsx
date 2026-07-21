@@ -26,6 +26,7 @@ import { PLUGIN_VERSION } from "./_version"
 
 // Bun / Node globals — available at runtime in the OpenCode TUI process
 declare const process: { env: Record<string, string | undefined> } | undefined
+declare function require(id: string): any
 
 // ── terminal-width helpers ────────────────────────────────────────
 // CJK characters occupy 2 terminal columns; padEnd/padStart count
@@ -113,6 +114,26 @@ const ZH_T = {
   secDetail:  "明细",
   secModel:   "模型",
   secSkills:  "已加载技能",
+  secBalance: "余额",
+  balTotal:   "总余额:",
+  balGranted: "赠送:",
+  balTopped:  "充值:",
+  balNoKey:   "未配置 API Key",
+  balLoading: "查询中...",
+  balError:   "查询失败",
+  secModels:  "模型记录",
+  mdlCalls:   "次",
+  secGit:     "Git",
+  gitBranch:  "分支:",
+  gitModified:"修改:",
+  gitStaged:  "暂存:",
+  gitUntracked:"未跟踪:",
+  gitClean:   "工作区干净",
+  gitAhead:   "领先:",
+  gitBehind:  "落后:",
+  gitNoRepo:  "非 Git 仓库",
+  secDuration: "时长",
+  duration:   "运行时间:",
 } as const
 
 const EN_T = {
@@ -145,6 +166,26 @@ const EN_T = {
   secDetail:  "Detail",
   secModel:   "Model",
   secSkills:  "Loaded Skills",
+  secBalance: "Balance",
+  balTotal:   "Total:",
+  balGranted: "Granted:",
+  balTopped:  "Topped-up:",
+  balNoKey:   "No API Key set",
+  balLoading: "Fetching...",
+  balError:   "Fetch failed",
+  secModels:  "Model Log",
+  mdlCalls:   "calls",
+  secGit:     "Git",
+  gitBranch:  "Branch:",
+  gitModified:"Modified:",
+  gitStaged:  "Staged:",
+  gitUntracked:"Untracked:",
+  gitClean:   "Working tree clean",
+  gitAhead:   "Ahead:",
+  gitBehind:  "Behind:",
+  gitNoRepo:  "Not a Git repo",
+  secDuration: "Duration",
+  duration:   "Elapsed:",
 } as const
 
 // ── color helpers ────────────────────────────────────────────────
@@ -282,6 +323,13 @@ function fmtCost(n: number, symbol = "$", rate = 1): string {
   return symbol + v.toFixed(4)
 }
 
+function formatDuration(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":")
+}
+
 // ── token estimation ──
 // Character-based BPE approximation.  Default ratios (~4 ASCII or ~1.5 CJK
 // chars per token) work well for natural language but systematically
@@ -332,6 +380,101 @@ interface TokenDist {
 }
 
 // ---------------------------------------------------------------------------
+// DeepSeek Balance
+// ---------------------------------------------------------------------------
+
+interface DeepSeekBalance {
+  currency: string
+  total: string
+  granted: string
+  toppedUp: string
+}
+
+interface BalanceState {
+  status: "idle" | "loading" | "ok" | "error"
+  data: DeepSeekBalance | null
+  lastFetch: number
+}
+
+const BALANCE_POLL_MS = 5 * 60 * 1000 // 5 minutes
+
+async function fetchDeepSeekBalance(apiKey: string): Promise<DeepSeekBalance> {
+  const res = await fetch("https://api.deepseek.com/user/balance", {
+    headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const json = await res.json() as {
+    is_available?: boolean
+    balance_infos?: { currency: string; total_balance: string; granted_balance: string; topped_up_balance: string }[]
+  }
+  const info = json.balance_infos?.[0]
+  if (!info) throw new Error("No balance info")
+  return {
+    currency: info.currency ?? "CNY",
+    total: info.total_balance ?? "0",
+    granted: info.granted_balance ?? "0",
+    toppedUp: info.topped_up_balance ?? "0",
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Git status
+// ---------------------------------------------------------------------------
+
+interface GitStatus {
+  branch: string
+  modified: number
+  staged: number
+  untracked: number
+  ahead: number
+  behind: number
+  files: string[]
+  isRepo: boolean
+}
+
+const GIT_POLL_MS = 30 * 1000 // 30 seconds
+const GIT_MAX_FILES = 15 // cap displayed file list
+
+function fetchGitStatus(): GitStatus {
+  try {
+    const { execSync } = require("child_process")
+    const opts = { timeout: 3000, stdio: ["pipe", "pipe", "pipe"] as const }
+    let branch = ""
+    try {
+      branch = execSync("git branch --show-current", opts).toString().trim()
+    } catch {
+      // detached HEAD or not a repo
+      try {
+        branch = execSync("git rev-parse --short HEAD", opts).toString().trim()
+      } catch {
+        return { branch: "", modified: 0, staged: 0, untracked: 0, ahead: 0, behind: 0, files: [], isRepo: false }
+      }
+    }
+    const porcelain = execSync("git status --porcelain", opts).toString()
+    let modified = 0, staged = 0, untracked = 0
+    const files: string[] = []
+    for (const line of porcelain.split("\n")) {
+      if (line.length < 4) continue
+      const x = line[0], y = line[1]
+      const filePath = line.slice(3).trim()
+      if (x === "?" && y === "?") { untracked++; files.push(filePath); continue }
+      if (x !== " " && x !== "?") { staged++; files.push(filePath) }
+      else if (y !== " " && y !== "?") { modified++; files.push(filePath) }
+    }
+    // ahead/behind remote
+    let ahead = 0, behind = 0
+    try {
+      const counts = execSync(`git rev-list --left-right --count origin/${branch}...HEAD`, opts).toString().trim()
+      const parts = counts.split(/\s+/)
+      if (parts.length === 2) { behind = parseInt(parts[0], 10) || 0; ahead = parseInt(parts[1], 10) || 0 }
+    } catch { /* no remote tracking */ }
+    return { branch, modified, staged, untracked, ahead, behind, files: files.slice(0, GIT_MAX_FILES), isRepo: true }
+  } catch {
+    return { branch: "", modified: 0, staged: 0, untracked: 0, ahead: 0, behind: 0, files: [], isRepo: false }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Sidebar component
 // ---------------------------------------------------------------------------
 
@@ -355,6 +498,14 @@ interface PanelSignals {
   setSectionSkills: (v: boolean) => void
   borderVisible: () => boolean
   setBorderVisible: (v: boolean) => void
+  sectionBalance: () => boolean
+  setSectionBalance: (v: boolean) => void
+  sectionModels: () => boolean
+  setSectionModels: (v: boolean) => void
+  sectionGit: () => boolean
+  setSectionGit: (v: boolean) => void
+  sectionDuration: () => boolean
+  setSectionDuration: (v: boolean) => void
   /** When set, the panel renders stats for this session instead of the main one. */
   overrideSessionId: () => string | undefined
   setOverrideSessionId: (v: string | undefined) => void
@@ -393,6 +544,13 @@ function TokenCachePanel(props: {
   const [modelOpen, setModelOpen] = createSignal(true)
   const [distOpen, setDistOpen] = createSignal(false)
   const [skillsOpen, setSkillsOpen] = createSignal(true)
+  const [balanceOpen, setBalanceOpen] = createSignal(true)
+  const [modelsOpen, setModelsOpen] = createSignal(true)
+  const [gitOpen, setGitOpen] = createSignal(true)
+  const [gitFilesOpen, setGitFilesOpen] = createSignal(false)
+  const [durationOpen, setDurationOpen] = createSignal(true)
+  const [sessionTimeCreated, setSessionTimeCreated] = createSignal(0)
+  const [elapsedSeconds, setElapsedSeconds] = createSignal(0)
   let boxEl: any
 
   // ── shared signals (de-structured so internal code is unchanged) ──
@@ -405,6 +563,10 @@ function TokenCachePanel(props: {
     sectionDist, setSectionDist,
     sectionSkills, setSectionSkills,
     borderVisible, setBorderVisible,
+    sectionBalance, setSectionBalance,
+    sectionModels, setSectionModels,
+    sectionGit, setSectionGit,
+    sectionDuration, setSectionDuration,
   } = props.signals
 
   // ── reactive translation (follows langZH signal) ──
@@ -437,6 +599,35 @@ function TokenCachePanel(props: {
   })
   const [refreshTick, setRefreshTick] = createSignal(0)
 
+  // ── DeepSeek balance polling ──────────────────────────────────
+  const [balanceState, setBalanceState] = createSignal<BalanceState>({
+    status: "idle", data: null, lastFetch: 0,
+  })
+
+  const pollBalance = async () => {
+    const key = props.api.kv.get<string>(`${KV_PREFIX}.ds_key`, "")
+    if (!key) { setBalanceState({ status: "idle", data: null, lastFetch: 0 }); return }
+    const now = Date.now()
+    const prev = balanceState()
+    if (prev.status === "ok" && now - prev.lastFetch < BALANCE_POLL_MS) return // cache still fresh
+    setBalanceState({ ...prev, status: "loading" })
+    try {
+      const data = await fetchDeepSeekBalance(key)
+      setBalanceState({ status: "ok", data, lastFetch: Date.now() })
+    } catch {
+      setBalanceState({ ...prev, status: "error" })
+    }
+  }
+
+  // ── Git status polling ────────────────────────────────────────
+  const [gitState, setGitState] = createSignal<GitStatus>({
+    branch: "", modified: 0, staged: 0, untracked: 0, ahead: 0, behind: 0, files: [], isRepo: false,
+  })
+
+  const pollGit = () => {
+    setGitState(fetchGitStatus())
+  }
+
   // ── auto-clear override when the user navigates to a different main session ──
   let lastMainSid = props.sessionId
   createEffect(() => {
@@ -461,6 +652,9 @@ function TokenCachePanel(props: {
       ? props.api.state.session.get(sid)
       : undefined
 
+    // 提取会话创建时间（用于计时器）
+    if (session?.time?.created) setSessionTimeCreated(session.time.created)
+
     // 累计值优先使用 Session 聚合字段（数据库级，不受 sync 层 limit:100 截断）
     // 若字段不存在（旧版本 SDK），降级到消息遍历累加
     let input  = session?.tokens?.input ?? 0
@@ -476,11 +670,22 @@ function TokenCachePanel(props: {
     const fallbackModel  = !pid || !mid
 
     let prevMsgHitRate = -1, lastMsgHitRate = -1
+    const modelUsage = new Map<string, { tokens: number; calls: number }>()
     for (const msg of msgs) {
       if (msg.role !== "assistant") continue
       const t = (msg as AssistantMessage).tokens; if (!t) continue
       const mit = num(t.input) + num(t.cache?.read), mrt = num(t.cache?.read)
-      if (mit > 0) { prevMsgHitRate = lastMsgHitRate; lastMsgHitRate = (mrt / mit) * 100 }
+      if (mit > 0) {
+        prevMsgHitRate = lastMsgHitRate; lastMsgHitRate = (mrt / mit) * 100
+      }
+      // Track per-model token usage
+      const msgModel = (msg as AssistantMessage).modelID || mid
+      if (msgModel) {
+        const entry = modelUsage.get(msgModel) ?? { tokens: 0, calls: 0 }
+        entry.tokens += num(t.input) + num(t.cache?.read) + num(t.output)
+        entry.calls += 1
+        modelUsage.set(msgModel, entry)
+      }
       if (fallbackTokens) {
         input += num(t.input); read += num(t.cache?.read); write += num(t.cache?.write); output += num(t.output)
       }
@@ -583,6 +788,7 @@ function TokenCachePanel(props: {
       trend, hasTrendData, providerName, sessionHitRate,
       dist: distData.finalDist, hasDistData: distData.finalHasDist,
       skills: distData.skills, hasSkills: distData.skills.length > 0,
+      modelUsage: [...modelUsage.entries()].map(([name, u]) => ({ name, tokens: u.tokens, calls: u.calls })),
     })
   })
 
@@ -623,6 +829,11 @@ function TokenCachePanel(props: {
       setModelOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.model`, true)))
       setDistOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.dist`, false)))
       setSkillsOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.skills`, true)))
+      setBalanceOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.balance`, true)))
+      setModelsOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.models`, true)))
+      setGitOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.git`, true)))
+      setGitFilesOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.gitfiles`, false)))
+      setDurationOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.duration`, true)))
     } catch {}
 
     // Restore user config (currency, rate, section visibility).
@@ -638,6 +849,10 @@ function TokenCachePanel(props: {
         setSectionModel(Boolean(props.api.kv.get(`${KV_PREFIX}.section.model`, true)))
         setSectionDist(Boolean(props.api.kv.get(`${KV_PREFIX}.section.dist`, true)))
         setSectionSkills(Boolean(props.api.kv.get(`${KV_PREFIX}.section.skills`, true)))
+        setSectionBalance(Boolean(props.api.kv.get(`${KV_PREFIX}.section.balance`, true)))
+        setSectionModels(Boolean(props.api.kv.get(`${KV_PREFIX}.section.models`, true)))
+        setSectionGit(Boolean(props.api.kv.get(`${KV_PREFIX}.section.git`, true)))
+        setSectionDuration(Boolean(props.api.kv.get(`${KV_PREFIX}.section.duration`, true)))
         const bv = props.api.kv.get<boolean>(`${KV_PREFIX}.border`, true)
         setBorderVisible(bv !== false)
         // Restore language preference
@@ -692,7 +907,22 @@ function TokenCachePanel(props: {
     const unsubMsg = props.api.event.on("message.updated", () => { bumpPartVersion(); setRefreshTick(v => v + 1) })
     const unsubSession = props.api.event.on("session.updated", () => { setRefreshTick(v => v + 1) })
     setRefreshTick(v => v + 1)
-    onCleanup(() => { clearTimeout(partTimer); unsubPart(); unsubMsg(); unsubSession() })
+
+    // ── DeepSeek balance: initial fetch + periodic poll ──
+    pollBalance()
+    const balanceTimer = setInterval(pollBalance, BALANCE_POLL_MS)
+
+    // ── Git status: initial fetch + periodic poll ──
+    pollGit()
+    const gitTimer = setInterval(pollGit, GIT_POLL_MS)
+
+    // ── session duration timer ──
+    const durationTimer = setInterval(() => {
+      const created = sessionTimeCreated()
+      if (created > 0) setElapsedSeconds(Math.floor((Date.now() - created) / 1000))
+    }, 1000)
+
+    onCleanup(() => { clearTimeout(partTimer); clearInterval(balanceTimer); clearInterval(gitTimer); clearInterval(durationTimer); unsubPart(); unsubMsg(); unsubSession() })
   })
 
   // ── colours ──
@@ -840,6 +1070,20 @@ function TokenCachePanel(props: {
             {justify(t().totalHit, (Math.floor(data().sessionHitRate * 10) / 10).toFixed(1) + "%")}
           </text>
 
+          {/* ── duration section (collapsible, default open) ── */}
+          <Show when={sectionDuration()}>
+          <text onMouseUp={() => setDurationOpen((o) => { const n = !o; persistFold("duration", n); return n })}>
+            <span style={{ fg: pal().muted }}>{durationOpen() ? "\u25bc " : "\u25b6 "}</span>
+            <span style={{ fg: pal().primary }}><b>{t().secDuration}</b></span>
+            <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((durationOpen() ? "\u25bc " : "\u25b6 ") + t().secDuration))}</span>
+          </text>
+          <Show when={durationOpen()}>
+            <text fg={pal().muted}>
+              {justify(t().duration, formatDuration(elapsedSeconds()))}
+            </text>
+          </Show>
+          </Show>
+
           {/* ── detail section (collapsible, default open) ── */}
           <Show when={sectionDetail()}>
           <text onMouseUp={() => setDetailOpen((o) => { const n = !o; persistFold("detail", n); return n })}>
@@ -977,6 +1221,142 @@ function TokenCachePanel(props: {
             </Show>
           </Show>
           </Show>
+
+          {/* ── DeepSeek balance (collapsible, default open) ── */}
+          <Show when={sectionBalance()}>
+            {<text onMouseUp={() => setBalanceOpen((o) => { const n = !o; persistFold("balance", n); return n })}>
+              <span style={{ fg: pal().muted }}>{balanceOpen() ? "\u25bc " : "\u25b6 "}</span>
+              <span style={{ fg: pal().primary }}><b>{t().secBalance}</b></span>
+              <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((balanceOpen() ? "\u25bc " : "\u25b6 ") + t().secBalance))}</span>
+            </text>}
+            <Show when={balanceOpen()}>
+              <Show when={balanceState().status === "idle"}>
+                <text fg={pal().muted}>
+                  <span style={{ fg: pal().muted }}>{"> "}</span>
+                  <span>{t().balNoKey}</span>
+                </text>
+              </Show>
+              <Show when={balanceState().status === "loading"}>
+                <text fg={pal().muted}>
+                  <span style={{ fg: pal().muted }}>{"> "}</span>
+                  <span>{t().balLoading}</span>
+                </text>
+              </Show>
+              <Show when={balanceState().status === "error"}>
+                <text fg={pal().error}>
+                  <span style={{ fg: pal().muted }}>{"> "}</span>
+                  <span>{t().balError}</span>
+                </text>
+              </Show>
+              <Show when={balanceState().status === "ok" && balanceState().data}>
+                {(() => {
+                  const b = balanceState().data!
+                  const sym = b.currency === "CNY" ? "\u00a5" : b.currency === "USD" ? "$" : b.currency + " "
+                  return (
+                    <text fg={pal().text}>
+                      {justify(t().balTotal, sym + b.total)}
+                    </text>
+                  )
+                })()}
+              </Show>
+            </Show>
+          </Show>
+
+          {/* ── model usage log (collapsible, default open) ── */}
+          <Show when={sectionModels()}>
+          <Show when={data().modelUsage && data().modelUsage.length > 0}>
+            {<text onMouseUp={() => setModelsOpen((o) => { const n = !o; persistFold("models", n); return n })}>
+              <span style={{ fg: pal().muted }}>{modelsOpen() ? "\u25bc " : "\u25b6 "}</span>
+              <span style={{ fg: pal().primary }}><b>{t().secModels}</b></span>
+              <span style={{ fg: pal().muted }}> ({data().modelUsage.length})</span>
+              <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((modelsOpen() ? "\u25bc " : "\u25b6 ") + t().secModels + ` (${data().modelUsage.length})`))}</span>
+            </text>}
+            <Show when={modelsOpen()}>
+              {data().modelUsage.map((m: { name: string; tokens: number; calls: number }) => {
+                const shortName = m.name.split("/").pop() ?? m.name
+                const rightStr = fmt(m.tokens) + " " + t().tok
+                const callsStr = `${m.calls}${t().mdlCalls}`
+                const rightW = visualWidth(rightStr) + UNIT_GAP + visualWidth(callsStr)
+                const maxLabel = Math.max(4, panelWidth() - gutter() - rightW - 2)
+                const label = truncateVisual(shortName, maxLabel)
+                return (
+                  <text fg={pal().muted}>
+                    {label} {" ".repeat(Math.max(1, panelWidth() - gutter() - visualWidth(label) - rightW))}{rightStr} {callsStr}
+                  </text>
+                )
+              })}
+            </Show>
+          </Show>
+          </Show>
+
+          {/* ── git status (collapsible, default open) ── */}
+          <Show when={sectionGit()}>
+            {<text onMouseUp={() => setGitOpen((o) => { const n = !o; persistFold("git", n); return n })}>
+              <span style={{ fg: pal().muted }}>{gitOpen() ? "\u25bc " : "\u25b6 "}</span>
+              <span style={{ fg: pal().primary }}><b>{t().secGit}</b></span>
+              <span style={{ fg: pal().muted }}>{sep().slice(visualWidth((gitOpen() ? "\u25bc " : "\u25b6 ") + t().secGit))}</span>
+            </text>}
+            <Show when={gitOpen()}>
+              <Show when={!gitState().isRepo}>
+                <text fg={pal().muted}>
+                  <span style={{ fg: pal().muted }}>{"> "}</span>
+                  <span>{t().gitNoRepo}</span>
+                </text>
+              </Show>
+              <Show when={gitState().isRepo}>
+                <text fg={pal().text}>
+                  {justify(t().gitBranch, truncateVisual(gitState().branch, Math.max(6, panelWidth() - gutter() - visualWidth(t().gitBranch) - 1)))}
+                </text>
+                <Show when={gitState().modified + gitState().staged + gitState().untracked === 0}>
+                  <text fg={pal().success}>
+                    <span style={{ fg: pal().muted }}>{"> "}</span>
+                    <span>{t().gitClean}</span>
+                  </text>
+                </Show>
+                <Show when={gitState().modified > 0}>
+                  <text fg={pal().muted}>
+                    {justify(t().gitModified, String(gitState().modified))}
+                  </text>
+                </Show>
+                <Show when={gitState().staged > 0}>
+                  <text fg={pal().muted}>
+                    {justify(t().gitStaged, String(gitState().staged))}
+                  </text>
+                </Show>
+                <Show when={gitState().untracked > 0}>
+                  <text fg={pal().muted}>
+                    {justify(t().gitUntracked, String(gitState().untracked))}
+                  </text>
+                </Show>
+                <Show when={gitState().ahead > 0}>
+                  <text fg={pal().success}>
+                    {justify(t().gitAhead, "\u2191" + gitState().ahead)}
+                  </text>
+                </Show>
+                <Show when={gitState().behind > 0}>
+                  <text fg={pal().warning}>
+                    {justify(t().gitBehind, "\u2193" + gitState().behind)}
+                  </text>
+                </Show>
+                <Show when={gitState().files.length > 0}>
+                  <text onMouseUp={() => setGitFilesOpen((o) => { const n = !o; persistFold("gitfiles", n); return n })}>
+                    <span style={{ fg: pal().muted }}>{gitFilesOpen() ? "\u25bc " : "\u25b6 "}</span>
+                    <span style={{ fg: pal().muted }}>{gitState().files.length} files</span>
+                  </text>
+                  <Show when={gitFilesOpen()}>
+                    {gitState().files.map((f: string) => {
+                      const short = f.length > panelWidth() - gutter() - 2 ? "\u2026" + f.slice(-(panelWidth() - gutter() - 3)) : f
+                      return (
+                        <text fg={pal().muted}>
+                          {"  "}{short}
+                        </text>
+                      )
+                    })}
+                  </Show>
+                </Show>
+              </Show>
+            </Show>
+          </Show>
         </Show>
       </Show>
     </box>
@@ -1022,6 +1402,10 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
   const [sectionModel, setSectionModel] = createSignal(true)
   const [sectionDist, setSectionDist] = createSignal(true)
   const [sectionSkills, setSectionSkills] = createSignal(true)
+  const [sectionBalance, setSectionBalance] = createSignal(true)
+  const [sectionModels, setSectionModels] = createSignal(true)
+  const [sectionGit, setSectionGit] = createSignal(true)
+  const [sectionDuration, setSectionDuration] = createSignal(true)
   const [borderVisible, setBorderVisible] = createSignal(true)
   const [langZH, setLangZH] = createSignal(LANG_ZH)
   const [overrideSessionId, setOverrideSessionId] = createSignal<string | undefined>(undefined)
@@ -1034,6 +1418,10 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
     sectionModel, setSectionModel,
     sectionDist, setSectionDist,
     sectionSkills, setSectionSkills,
+    sectionBalance, setSectionBalance,
+    sectionModels, setSectionModels,
+    sectionGit, setSectionGit,
+    sectionDuration, setSectionDuration,
     borderVisible, setBorderVisible,
     overrideSessionId, setOverrideSessionId,
   }
@@ -1105,6 +1493,10 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
         const modelOn  = Boolean(api.kv.get(`${KV_PREFIX}.section.model`, true))
         const distOn   = Boolean(api.kv.get(`${KV_PREFIX}.section.dist`, true))
         const skillsOn = Boolean(api.kv.get(`${KV_PREFIX}.section.skills`, true))
+        const balanceOn = Boolean(api.kv.get(`${KV_PREFIX}.section.balance`, true))
+        const modelsOn = Boolean(api.kv.get(`${KV_PREFIX}.section.models`, true))
+        const gitOn    = Boolean(api.kv.get(`${KV_PREFIX}.section.git`, true))
+        const durationOn = Boolean(api.kv.get(`${KV_PREFIX}.section.duration`, true))
         const borderOn = Boolean(api.kv.get(`${KV_PREFIX}.border`, true))
         dialog?.replace(() => (
           <api.ui.DialogSelect
@@ -1114,6 +1506,10 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
               { title: `Model & Pricing [${modelOn  ? "ON" : "OFF"}]`,  value: "model" },
               { title: `Token Dist.     [${distOn   ? "ON" : "OFF"}]`,  value: "dist" },
               { title: `Loaded Skills   [${skillsOn ? "ON" : "OFF"}]`,  value: "skills" },
+              { title: `DS Balance      [${balanceOn ? "ON" : "OFF"}]`, value: "balance" },
+              { title: `Model Log       [${modelsOn ? "ON" : "OFF"}]`,  value: "models" },
+              { title: `Git Status      [${gitOn    ? "ON" : "OFF"}]`,  value: "git" },
+              { title: `Duration        [${durationOn ? "ON" : "OFF"}]`, value: "duration" },
               { title: `Panel Border    [${borderOn ? "ON" : "OFF"}]`,  value: "border" },
             ]}
             onSelect={(opt) => {
@@ -1130,6 +1526,10 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
                 if (opt.value === "model")  signals.setSectionModel(!cur)
                 if (opt.value === "dist")   signals.setSectionDist(!cur)
                 if (opt.value === "skills") signals.setSectionSkills(!cur)
+                if (opt.value === "balance") signals.setSectionBalance(!cur)
+                if (opt.value === "models") signals.setSectionModels(!cur)
+                if (opt.value === "git")    signals.setSectionGit(!cur)
+                if (opt.value === "duration") signals.setSectionDuration(!cur)
                 api.ui.toast({ message: `${opt.value} section ${!cur ? "shown" : "hidden"}` })
               }
               dialog?.clear()
@@ -1323,6 +1723,35 @@ const tui: TuiPlugin = async (api: TuiPluginApi) => {
             />
           ))
         }
+      },
+    },
+    {
+      title: "Cache: Set DeepSeek API Key",
+      value: "cache.balance.key",
+      description: "Set or update the DeepSeek API key for balance display",
+      slash: { name: "cache-balance-key" },
+      onSelect: (dialog) => {
+        const zh = langZH()
+        const current = api.kv.get<string>(`${KV_PREFIX}.ds_key`, "")
+        dialog?.replace(() => (
+          <api.ui.DialogPrompt
+            title={zh ? "DeepSeek API Key" : "DeepSeek API Key"}
+            description={() => <text>{zh ? "输入 DeepSeek API Key 以显示账户余额（留空则清除）" : "Enter your DeepSeek API key to show account balance (leave empty to clear)"}</text>}
+            placeholder="sk-..."
+            value={current}
+            onConfirm={(val) => {
+              const key = val.trim()
+              api.kv.set(`${KV_PREFIX}.ds_key`, key)
+              if (key) {
+                api.ui.toast({ message: zh ? "API Key 已保存，正在查询余额..." : "API Key saved, fetching balance..." })
+              } else {
+                api.ui.toast({ message: zh ? "API Key 已清除" : "API Key cleared" })
+              }
+              dialog?.clear()
+            }}
+            onCancel={() => dialog?.clear()}
+          />
+        ))
       },
     },
     {
