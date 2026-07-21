@@ -55,6 +55,10 @@ Interested in sub-agent monitoring? Check out [opencode-subagent-magazine](https
 - **Slash Commands**: `/cache-session` `/cache-session-back` `/cache-rate` `/cache-section` `/cache-config` `/cache-lang` for live panel configuration
 - **Sub-Agent Cache View**: `/cache-session` auto-scans and lists sub-agents; select one to switch the panel stats. Use `/cache-session-back` to return to the main session
 - **Loaded Skills**: Detects `skill` tool calls in the session and displays loaded skill names with estimated token footprint
+- **DeepSeek Balance**: Periodically polls DeepSeek API to show total balance, granted amount, and topped-up amount. Set API Key via `/cache-balance-key`
+- **Model Call Log**: Tracks cumulative token consumption and call count per model name, collapsible
+- **Git Status Panel**: Real-time display of current branch, modified/staged/untracked file counts, ahead/behind remote status, with expandable changed file list
+- **Session Duration Timer**: Shows elapsed time (HH:MM:SS) based on session creation time
 
 ---
 
@@ -107,7 +111,8 @@ The plugin supports slash commands and command palette (`Ctrl + P`) for runtime 
 | `/cache-session-back` | Return to main session | Switch back to main session from sub-agent cache view |
 | `/cache-currency` | Switch currency | Pick from a list (USD / CNY / EUR / JPY / GBP / KRW); default exchange rate auto-filled |
 | `/cache-rate` | Adjust exchange rate | Enter a custom rate (e.g. `7.2` for CNY) |
-| `/cache-section` | Toggle sections & border | Independently show/hide Detail, Model & Pricing, Token Distribution, Loaded Skills, or the panel border |
+| `/cache-balance-key` | Set DeepSeek API Key | Enter your API Key to enable balance display; leave empty to clear |
+| `/cache-section` | Toggle sections & border | Independently show/hide Detail, Model & Pricing, Token Distribution, Loaded Skills, Balance, Model Log, Git, Duration, or the panel border |
 | `/cache-config` | View current config | Displays currency, rate, and section visibility |
 | `/cache-lang` | Switch display language | Pick Chinese or English from the dialog — takes effect immediately, no restart needed |
 

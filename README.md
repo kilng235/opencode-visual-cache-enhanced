@@ -55,6 +55,10 @@
 - **斜杠命令**：`/cache-session` `/cache-session-back` `/cache-rate` `/cache-section` `/cache-config` `/cache-lang` 动态配置面板
 - **子代理缓存查看**：`/cache-session` 自动扫描并列出子代理，选择一个即可切换面板显示其缓存统计，支持 `/cache-session-back` 返回主会话
 - **已加载技能**：检测 session 中 LLM 调用 `skill` tool 的记录，展示已加载技能名及估算 Token 占用
+- **DeepSeek 余额查询**：定时轮询 DeepSeek API 展示账户总余额、赠送金额、充值金额，通过 `/cache-balance-key` 设置 API Key
+- **模型调用记录**：按模型名统计累计 token 消耗和调用次数，支持折叠展开
+- **Git 状态面板**：实时显示当前分支、修改/暂存/未跟踪文件数、与远程的 ahead/behind 状态，可展开查看变更文件列表
+- **会话时长计时**：根据 Session 创建时间实时展示运行时长（HH:MM:SS）
 
 ---
 
@@ -107,7 +111,8 @@ npm install -g opencode-visual-cache@latest
 | `/cache-session-back` | 返回主会话统计 | 从子代理缓存视图切回主会话 |
 | `/cache-currency` | 切换货币单位 | 从列表选择货币（USD / CNY / EUR / JPY / GBP / KRW），自动填入默认汇率 |
 | `/cache-rate` | 调整汇率乘数 | 输入自定义汇率（如 `7.2`），用于费用换算 |
-| `/cache-section` | 开关区块与边框 | 独立控制 Token 明细 / 模型与定价 / 估算 Token 分布 / 已加载技能 / 面板边框的显隐 |
+| `/cache-balance-key` | 设置 DeepSeek API Key | 输入 API Key 以启用余额查询，留空则清除 |
+| `/cache-section` | 开关区块与边框 | 独立控制 Token 明细 / 模型与定价 / 估算 Token 分布 / 已加载技能 / 余额 / 模型记录 / Git / 时长 / 面板边框的显隐 |
 | `/cache-config` | 查看当前配置 | 弹出当前货币、汇率、区块可见性状态 |
 | `/cache-lang` | 切换显示语言 | 从列表选择中文或 English，界面即时切换，无需重启 |
 
