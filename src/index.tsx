@@ -434,6 +434,7 @@ interface GitStatus {
 
 const GIT_POLL_MS = 15 * 1000 // 30 seconds
 const GIT_MAX_FILES = 15 // cap displayed file list
+const IDLE_TIMEOUT_MS = 2 * 60 * 1000 // 2 minutes: pause timer if no interaction
 
 function fetchGitStatus(): GitStatus {
   try {
@@ -551,6 +552,9 @@ function TokenCachePanel(props: {
   const [durationOpen, setDurationOpen] = createSignal(true)
   const [sessionTimeCreated, setSessionTimeCreated] = createSignal(0)
   const [elapsedSeconds, setElapsedSeconds] = createSignal(0)
+  const [activeSeconds, setActiveSeconds] = createSignal(0)
+  const [lastActivity, setLastActivity] = createSignal(Date.now())
+  const [isIdle, setIsIdle] = createSignal(false)
   let boxEl: any
 
   // ── shared signals (de-structured so internal code is unchanged) ──
@@ -916,13 +920,24 @@ function TokenCachePanel(props: {
     pollGit()
     const gitTimer = setInterval(pollGit, GIT_POLL_MS)
 
-    // ── session duration timer ──
+    // ── session duration timer (active time, pauses on idle) ──
     const durationTimer = setInterval(() => {
-      const created = sessionTimeCreated()
-      if (created > 0) setElapsedSeconds(Math.floor((Date.now() - created) / 1000))
+      const last = lastActivity()
+      const idle = Date.now() - last > IDLE_TIMEOUT_MS
+      setIsIdle(idle)
+      if (!idle && sessionTimeCreated() > 0) setActiveSeconds((s) => s + 1)
     }, 1000)
 
-    onCleanup(() => { clearTimeout(partTimer); clearInterval(balanceTimer); clearInterval(gitTimer); clearInterval(durationTimer); unsubPart(); unsubMsg(); unsubSession() })
+    // ── activity tracking (reset idle on user input) ──
+    const markActive = () => setLastActivity(Date.now())
+    const activityEvents = ["mousemove", "mousedown", "keydown", "wheel"] as const
+    if (boxEl) for (const ev of activityEvents) boxEl.addEventListener(ev, markActive)
+
+    onCleanup(() => {
+      clearTimeout(partTimer); clearInterval(balanceTimer); clearInterval(gitTimer); clearInterval(durationTimer)
+      if (boxEl) for (const ev of activityEvents) boxEl.removeEventListener(ev, markActive)
+      unsubPart(); unsubMsg(); unsubSession()
+    })
   })
 
   // ── colours ──
@@ -1079,7 +1094,7 @@ function TokenCachePanel(props: {
           </text>
           <Show when={durationOpen()}>
             <text fg={pal().muted}>
-              {justify(t().duration, formatDuration(elapsedSeconds()))}
+              {justify(t().duration, formatDuration(activeSeconds()))}
             </text>
           </Show>
           </Show>
