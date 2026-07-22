@@ -132,6 +132,7 @@ const ZH_T = {
   gitAhead:   "领先:",
   gitBehind:  "落后:",
   gitNoRepo:  "非 Git 仓库",
+  gitCommits: "最近提交:",
   secDuration: "时长",
   duration:   "运行时间:",
 } as const
@@ -184,6 +185,7 @@ const EN_T = {
   gitAhead:   "Ahead:",
   gitBehind:  "Behind:",
   gitNoRepo:  "Not a Git repo",
+  gitCommits: "Recent:",
   secDuration: "Duration",
   duration:   "Elapsed:",
 } as const
@@ -421,6 +423,11 @@ async function fetchDeepSeekBalance(apiKey: string): Promise<DeepSeekBalance> {
 // Git status
 // ---------------------------------------------------------------------------
 
+interface GitCommit {
+  hash: string
+  message: string
+}
+
 interface GitStatus {
   branch: string
   modified: number
@@ -429,12 +436,12 @@ interface GitStatus {
   ahead: number
   behind: number
   files: string[]
+  commits: GitCommit[]
   isRepo: boolean
 }
 
 const GIT_POLL_MS = 15 * 1000 // 30 seconds
 const GIT_MAX_FILES = 15 // cap displayed file list
-const IDLE_TIMEOUT_MS = 2 * 60 * 1000 // 2 minutes: pause timer if no interaction
 
 function fetchGitStatus(): GitStatus {
   try {
@@ -448,7 +455,7 @@ function fetchGitStatus(): GitStatus {
       try {
         branch = execSync("git rev-parse --short HEAD", opts).toString().trim()
       } catch {
-        return { branch: "", modified: 0, staged: 0, untracked: 0, ahead: 0, behind: 0, files: [], isRepo: false }
+        return { branch: "", modified: 0, staged: 0, untracked: 0, ahead: 0, behind: 0, files: [], commits: [], isRepo: false }
       }
     }
     const porcelain = execSync("git status --porcelain", opts).toString()
@@ -469,9 +476,18 @@ function fetchGitStatus(): GitStatus {
       const parts = counts.split(/\s+/)
       if (parts.length === 2) { behind = parseInt(parts[0], 10) || 0; ahead = parseInt(parts[1], 10) || 0 }
     } catch { /* no remote tracking */ }
-    return { branch, modified, staged, untracked, ahead, behind, files: files.slice(0, GIT_MAX_FILES), isRepo: true }
+    // recent commits (last 3)
+    const commits: GitCommit[] = []
+    try {
+      const log = execSync("git log --oneline -n 3 --format=%h %s", opts).toString().trim()
+      for (const line of log.split("\n")) {
+        const m = line.match(/^(\S+)\s+(.+)$/)
+        if (m) commits.push({ hash: m[1], message: m[2] })
+      }
+    } catch { /* no commits yet */ }
+    return { branch, modified, staged, untracked, ahead, behind, files: files.slice(0, GIT_MAX_FILES), commits, isRepo: true }
   } catch {
-    return { branch: "", modified: 0, staged: 0, untracked: 0, ahead: 0, behind: 0, files: [], isRepo: false }
+    return { branch: "", modified: 0, staged: 0, untracked: 0, ahead: 0, behind: 0, files: [], commits: [], isRepo: false }
   }
 }
 
@@ -549,12 +565,10 @@ function TokenCachePanel(props: {
   const [modelsOpen, setModelsOpen] = createSignal(true)
   const [gitOpen, setGitOpen] = createSignal(true)
   const [gitFilesOpen, setGitFilesOpen] = createSignal(false)
+  const [gitCommitsOpen, setGitCommitsOpen] = createSignal(false)
   const [durationOpen, setDurationOpen] = createSignal(true)
   const [sessionTimeCreated, setSessionTimeCreated] = createSignal(0)
   const [elapsedSeconds, setElapsedSeconds] = createSignal(0)
-  const [activeSeconds, setActiveSeconds] = createSignal(0)
-  const [lastActivity, setLastActivity] = createSignal(Date.now())
-  const [isIdle, setIsIdle] = createSignal(false)
   let boxEl: any
 
   // ── shared signals (de-structured so internal code is unchanged) ──
@@ -625,7 +639,7 @@ function TokenCachePanel(props: {
 
   // ── Git status polling ────────────────────────────────────────
   const [gitState, setGitState] = createSignal<GitStatus>({
-    branch: "", modified: 0, staged: 0, untracked: 0, ahead: 0, behind: 0, files: [], isRepo: false,
+    branch: "", modified: 0, staged: 0, untracked: 0, ahead: 0, behind: 0, files: [], commits: [], isRepo: false,
   })
 
   const pollGit = () => {
@@ -837,6 +851,7 @@ function TokenCachePanel(props: {
       setModelsOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.models`, true)))
       setGitOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.git`, true)))
       setGitFilesOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.gitfiles`, false)))
+      setGitCommitsOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.gitcommits`, false)))
       setDurationOpen(Boolean(props.api.kv.get(`${KV_PREFIX}.duration`, true)))
     } catch {}
 
@@ -920,22 +935,13 @@ function TokenCachePanel(props: {
     pollGit()
     const gitTimer = setInterval(pollGit, GIT_POLL_MS)
 
-    // ── session duration timer (active time, pauses on idle) ──
+    // ── session duration timer (total elapsed time) ──
     const durationTimer = setInterval(() => {
-      const last = lastActivity()
-      const idle = Date.now() - last > IDLE_TIMEOUT_MS
-      setIsIdle(idle)
-      if (!idle && sessionTimeCreated() > 0) setActiveSeconds((s) => s + 1)
+      if (sessionTimeCreated() > 0) setElapsedSeconds(Math.floor((Date.now() - sessionTimeCreated()) / 1000))
     }, 1000)
-
-    // ── activity tracking (reset idle on user input) ──
-    const markActive = () => setLastActivity(Date.now())
-    const activityEvents = ["mousemove", "mousedown", "keydown", "wheel"] as const
-    if (boxEl) for (const ev of activityEvents) boxEl.addEventListener(ev, markActive)
 
     onCleanup(() => {
       clearTimeout(partTimer); clearInterval(balanceTimer); clearInterval(gitTimer); clearInterval(durationTimer)
-      if (boxEl) for (const ev of activityEvents) boxEl.removeEventListener(ev, markActive)
       unsubPart(); unsubMsg(); unsubSession()
     })
   })
@@ -1094,7 +1100,7 @@ function TokenCachePanel(props: {
           </text>
           <Show when={durationOpen()}>
             <text fg={pal().muted}>
-              {justify(t().duration, formatDuration(activeSeconds()))}
+              {justify(t().duration, formatDuration(elapsedSeconds()))}
             </text>
           </Show>
           </Show>
@@ -1368,6 +1374,45 @@ function TokenCachePanel(props: {
                         </text>
                       )
                     })}
+                  </Show>
+                </Show>
+                <Show when={gitState().commits.length > 0}>
+                  <text onMouseUp={() => setGitCommitsOpen((o) => { const n = !o; persistFold("gitcommits", n); return n })}>
+                    <span style={{ fg: pal().muted }}>{gitCommitsOpen() ? "\u25bc " : "\u25b6 "}</span>
+                    <span style={{ fg: pal().primary }}><b>{t().gitCommits}</b></span>
+                  </text>
+                  <Show when={gitCommitsOpen()}>
+                    {(() => {
+                      const indent = "  "
+                      const maxW = panelWidth() - gutter()
+                      return gitState().commits.map((c: GitCommit) => {
+                        const firstLineAvail = maxW - 2 - visualWidth(c.hash) - 1
+                        const restLineAvail = maxW - 2
+                        const lines: string[] = []
+                        let remaining = c.message
+                        let avail = firstLineAvail
+                        while (remaining.length > 0) {
+                          if (visualWidth(remaining) <= avail) {
+                            lines.push(remaining); break
+                          }
+                          let chunk = "", w = 0
+                          for (const ch of remaining) {
+                            const cw = charColumns(ch)
+                            if (w + cw > avail) break
+                            chunk += ch; w += cw
+                          }
+                          lines.push(chunk)
+                          remaining = remaining.slice(chunk.length)
+                          avail = restLineAvail
+                        }
+                        return lines.map((line, i) => (
+                          <text fg={pal().muted}>
+                            {i === 0 ? indent + "" : indent}
+                            {i === 0 ? <><span style={{ fg: pal().success }}>{c.hash}</span> {" "}{line}</> : line}
+                          </text>
+                        ))
+                      })
+                    })()}
                   </Show>
                 </Show>
               </Show>
